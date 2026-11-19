@@ -109,7 +109,14 @@ interface ProjectStore {
   selectedClipId: string | null;
   zoomLevel: number; // pixels per second
 
-  // Actions
+  // History & File I/O Actions
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  saveProjectToJson: () => void;
+  loadProjectFromJson: (jsonData: any) => void;
+  importMediaFile: (file: File) => void;
   setCurrentTime: (time: number) => void;
   setSelectedClipId: (clipId: string | null) => void;
   setZoomLevel: (zoom: number) => void;
@@ -145,6 +152,33 @@ let _idCounter = 0;
 export function genId(prefix: string) {
   _idCounter++;
   return `${prefix}-${Date.now()}-${_idCounter}`;
+}
+
+// Snapshot stack untuk Undo / Redo
+interface HistorySnapshot {
+  timeline: TimelineState;
+  characters: Character[];
+  episodes: Episode[];
+  meta: ProjectMeta;
+}
+
+const undoStack: HistorySnapshot[] = [];
+const redoStack: HistorySnapshot[] = [];
+
+function captureSnapshot(state: {
+  timeline: TimelineState;
+  characters: Character[];
+  episodes: Episode[];
+  meta: ProjectMeta;
+}): HistorySnapshot {
+  return JSON.parse(
+    JSON.stringify({
+      timeline: state.timeline,
+      characters: state.characters,
+      episodes: state.episodes,
+      meta: state.meta,
+    })
+  );
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -755,4 +789,127 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         })),
       },
     })),
+
+  // --- UNDO / REDO ---
+  undo: () => {
+    if (undoStack.length === 0) return;
+    const currentState = get();
+    // Simpan state saat ini ke redo stack
+    redoStack.push(captureSnapshot(currentState));
+
+    const prevSnapshot = undoStack.pop()!;
+    set({
+      timeline: prevSnapshot.timeline,
+      characters: prevSnapshot.characters,
+      episodes: prevSnapshot.episodes,
+      meta: prevSnapshot.meta,
+    });
+  },
+
+  redo: () => {
+    if (redoStack.length === 0) return;
+    const currentState = get();
+    // Simpan state saat ini ke undo stack
+    undoStack.push(captureSnapshot(currentState));
+
+    const nextSnapshot = redoStack.pop()!;
+    set({
+      timeline: nextSnapshot.timeline,
+      characters: nextSnapshot.characters,
+      episodes: nextSnapshot.episodes,
+      meta: nextSnapshot.meta,
+    });
+  },
+
+  canUndo: () => undoStack.length > 0,
+  canRedo: () => redoStack.length > 0,
+
+  // --- SAVE PROJECT TO JSON (DOWNLOAD FILE .kreatif.json) ---
+  saveProjectToJson: () => {
+    const state = get();
+    const projectData = {
+      version: "1.0.0",
+      saved_at: new Date().toISOString(),
+      meta: state.meta,
+      ai_settings: state.aiSettings,
+      characters: state.characters,
+      episodes: state.episodes,
+      timeline: state.timeline,
+    };
+
+    const jsonStr = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeTitle = state.meta.title.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    a.href = url;
+    a.download = `${safeTitle}.kreatif.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  // --- LOAD PROJECT FROM JSON ---
+  loadProjectFromJson: (jsonData) => {
+    if (!jsonData || !jsonData.timeline) return;
+    // Push current to undo
+    undoStack.push(captureSnapshot(get()));
+    set({
+      meta: jsonData.meta || get().meta,
+      aiSettings: jsonData.ai_settings || get().aiSettings,
+      characters: jsonData.characters || [],
+      episodes: jsonData.episodes || [],
+      timeline: jsonData.timeline,
+      selectedClipId: null,
+      currentTime: 0,
+    });
+  },
+
+  // --- IMPORT MEDIA FILE DIRECTLY TO TIMELINE ---
+  importMediaFile: (file) => {
+    const state = get();
+    undoStack.push(captureSnapshot(state));
+    redoStack.length = 0; // Clear redo
+
+    const url = URL.createObjectURL(file);
+    const fileType = file.type;
+
+    let targetTrackType: Track["type"] = "video";
+    if (fileType.startsWith("image/")) targetTrackType = "image";
+    else if (fileType.startsWith("audio/")) targetTrackType = "audio";
+    else if (fileType.startsWith("video/")) targetTrackType = "video";
+
+    let track = state.timeline.tracks.find((t) => t.type === targetTrackType);
+    if (!track) {
+      track = state.timeline.tracks[0];
+    }
+
+    if (track) {
+      const defaultDuration = targetTrackType === "image" ? 5 : 8;
+      const start = state.currentTime;
+      const end = start + defaultDuration;
+
+      const newClip: Clip = {
+        id: genId("clip"),
+        trackId: track.id,
+        source: url,
+        start,
+        end,
+        source_start: 0,
+        source_end: defaultDuration,
+        transform: { scale: 1, x: 0, y: 0, rotation: 0 },
+        crop: { x: 0, y: 0, width: 1920, height: 1080 },
+        transition_in: null,
+        transition_out: null,
+      };
+
+      if (targetTrackType === "audio") {
+        newClip.volume = 1.0;
+      }
+
+      get().addClipToTrack(track.id, newClip);
+      get().setCurrentTime(end);
+    }
+  },
 }));

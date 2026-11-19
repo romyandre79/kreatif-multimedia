@@ -80,7 +80,7 @@ export interface AiProviderConfig {
     apiKey: string;
   };
   imageGen: {
-    provider: "comfy_local" | "fal_ai" | "openai_dalle" | "midjourney";
+    provider: "gemini_flow" | "comfy_local" | "fal_ai" | "openai_dalle" | "midjourney";
     endpoint: string;
     apiKey: string;
   };
@@ -348,7 +348,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       apiKey: "",
     },
     imageGen: {
-      provider: "fal_ai",
+      provider: "gemini_flow",
       endpoint: "http://127.0.0.1:8188",
       apiKey: "",
     },

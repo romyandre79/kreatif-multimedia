@@ -1,5 +1,4 @@
 name: "Release Multi-Platform"
-name: "Release Multi-Platform"
 
 on:
   push:

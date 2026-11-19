@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useProjectStore, Clip, Track } from "../../stores/projectStore";
+import { playSpokenSpeech } from "../../services/naturalTts";
 
 export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -7,13 +8,17 @@ export default function CanvasPreview() {
   const lastTimeRef = useRef<number>(performance.now());
   const mediaCacheRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement | HTMLAudioElement>>(new Map());
 
-  const [isPlaying, setIsPlaying] = useState(false);
-
   const tracks = useProjectStore((s) => s.timeline.tracks);
   const currentTime = useProjectStore((s) => s.currentTime);
   const duration = useProjectStore((s) => s.meta.duration);
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const aspectRatio = useProjectStore((s) => s.meta.aspect_ratio);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef(false);
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
+  const spokenSubtitleRef = useRef<Set<string>>(new Set());
 
   // Helper untuk mendapatkan / me-load elemen Image, Video, atau Audio
   const getMediaElement = useCallback((source: string, type: "image" | "video" | "audio") => {
@@ -76,7 +81,8 @@ export default function CanvasPreview() {
 
               if (isCurrentlyActive && isPlaying) {
                 const targetTime = currentTime - clip.start + (clip.source_start || 0);
-                if (Math.abs(audio.currentTime - targetTime) > 0.25) {
+                // Hanya resync jika drift waktu cukup besar (> 0.6 detik) agar audio tidak tersendat/stutter
+                if (Math.abs(audio.currentTime - targetTime) > 0.6) {
                   audio.currentTime = Math.max(0, targetTime);
                 }
                 audio.volume = clip.volume ?? 1.0;
@@ -151,9 +157,30 @@ export default function CanvasPreview() {
       }
     }
 
-    // 3. Subtitle Rendering
+    // 3. Subtitle Rendering & Live Spoken Speech
     for (const { clip, track } of activeClips) {
       if (track.type === "subtitle" && clip.text) {
+        // Jika sedang play dan subtitle ini belum dibacakan suaranya di sesi play saat ini
+        if (isPlaying && !spokenSubtitleRef.current.has(clip.id)) {
+          spokenSubtitleRef.current.add(clip.id);
+          // Cek apakah ada klip audio bersamaan di timeline untuk dialog ini
+          const hasLinkedAudioClip = tracks.some(
+            (t) =>
+              t.type === "audio" &&
+              t.clips.some(
+                (c) =>
+                  Math.abs(c.start - clip.start) < 0.2 &&
+                  Boolean(c.source)
+              )
+          );
+
+          // Hanya jalankan speech synthesis jika TIDAK ADA klip audio audio file di timeline
+          if (!hasLinkedAudioClip) {
+            const cleanSpeechText = clip.text.replace(/^\[.*?\]:\s*/, "");
+            playSpokenSpeech(cleanSpeechText, "id-ID", 1.0);
+          }
+        }
+
         ctx.save();
         ctx.font = "bold 26px system-ui, -apple-system, sans-serif";
         ctx.textAlign = "center";
@@ -245,17 +272,21 @@ export default function CanvasPreview() {
 
   useEffect(() => {
     let animId: number;
+    lastTimeRef.current = performance.now();
 
     const tick = (now: number) => {
-      const deltaSec = (now - lastTimeRef.current) / 1000;
+      const deltaSec = Math.min((now - lastTimeRef.current) / 1000, 0.1);
       lastTimeRef.current = now;
 
-      if (isPlaying) {
-        const nextTime = currentTime + deltaSec;
+      if (isPlayingRef.current) {
+        const nextTime = currentTimeRef.current + deltaSec;
         if (nextTime >= duration) {
+          currentTimeRef.current = 0;
           setCurrentTime(0);
           setIsPlaying(false);
+          isPlayingRef.current = false;
         } else {
+          currentTimeRef.current = nextTime;
           setCurrentTime(nextTime);
         }
       }
@@ -264,11 +295,9 @@ export default function CanvasPreview() {
       animId = requestAnimationFrame(tick);
     };
 
-    lastTimeRef.current = performance.now();
     animId = requestAnimationFrame(tick);
-
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, currentTime, duration, renderFrame, setCurrentTime]);
+  }, [duration, renderFrame, setCurrentTime]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -327,7 +356,17 @@ export default function CanvasPreview() {
           </button>
 
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => {
+              const nextState = !isPlaying;
+              isPlayingRef.current = nextState;
+              if (!nextState) {
+                if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+              } else {
+                spokenSubtitleRef.current.clear();
+                lastTimeRef.current = performance.now();
+              }
+              setIsPlaying(nextState);
+            }}
             className={`h-7 px-3 flex items-center gap-1.5 rounded font-medium text-xs transition-all ${
               isPlaying
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"

@@ -6,6 +6,7 @@ import Timeline from "./components/Timeline/Timeline";
 import Inspector from "./components/Inspector/Inspector";
 import ExportDialog from "./components/ExportDialog/ExportDialog";
 import AiSettingsModal from "./components/AiSettingsModal/AiSettingsModal";
+import GeminiGeneratorModal from "./components/GeminiFlow/GeminiGeneratorModal";
 import Toolbar from "./components/Toolbar/Toolbar";
 import { useProjectStore } from "./stores/projectStore";
 
@@ -13,6 +14,7 @@ function App() {
   const [activePanel, setActivePanel] = useState<"characters" | "episodes">("characters");
   const [showExport, setShowExport] = useState(false);
   const [showAiSettings, setShowAiSettings] = useState(false);
+  const [showGeminiFlow, setShowGeminiFlow] = useState(false);
   const projectTitle = useProjectStore((s) => s.meta.title);
 
   return (
@@ -22,6 +24,7 @@ function App() {
         projectTitle={projectTitle}
         onExport={() => setShowExport(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
+        onOpenGeminiFlow={() => setShowGeminiFlow(true)}
       />
 
       {/* Main Studio Work Area */}
@@ -81,6 +84,7 @@ function App() {
       {/* Modals */}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showAiSettings && <AiSettingsModal onClose={() => setShowAiSettings(false)} />}
+      {showGeminiFlow && <GeminiGeneratorModal onClose={() => setShowGeminiFlow(false)} />}
     </div>
   );
 }

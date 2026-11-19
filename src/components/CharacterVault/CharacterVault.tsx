@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 import { DEFAULT_ELEVENLABS_VOICES, fetchElevenLabsVoices, ElevenLabsVoice } from "../../services/elevenlabs";
+import GeminiGeneratorModal from "../GeminiFlow/GeminiGeneratorModal";
 
 export default function CharacterVault() {
   const characters = useProjectStore((s) => s.characters);
@@ -16,6 +17,7 @@ export default function CharacterVault() {
     characters[0]?.id || null
   );
   const [elevenLabsVoices, setElevenLabsVoices] = useState<ElevenLabsVoice[]>(DEFAULT_ELEVENLABS_VOICES);
+  const [showGeminiModal, setShowGeminiModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const aiSettings = useProjectStore((s) => s.aiSettings);
@@ -284,12 +286,22 @@ export default function CharacterVault() {
                 </h4>
                 <p className="text-[9px] text-gray-500">Klik aset untuk memasukkan ke Timeline</p>
               </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-indigo-300 border border-indigo-900/60 rounded text-[10px] transition-colors"
-              >
-                + Upload Pose
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowGeminiModal(true)}
+                  className="px-2 py-1 bg-gradient-to-r from-indigo-900/90 to-purple-900/90 hover:from-indigo-800 hover:to-purple-800 text-cyan-300 border border-indigo-500/50 rounded text-[10px] flex items-center gap-1 transition-all shadow-sm"
+                  title="Generate Pose Karakter dengan Gemini Imagen 3"
+                >
+                  <span>✨</span>
+                  <span>Gemini Gen</span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-indigo-300 border border-indigo-900/60 rounded text-[10px] transition-colors"
+                >
+                  + Upload Pose
+                </button>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -357,6 +369,13 @@ export default function CharacterVault() {
           <span className="text-3xl mb-2">🎭</span>
           <p>Belum ada karakter yang dipilih.</p>
         </div>
+      )}
+      {/* Gemini AI Generator Modal */}
+      {showGeminiModal && activeChar && (
+        <GeminiGeneratorModal
+          targetCharacterId={activeChar.id}
+          onClose={() => setShowGeminiModal(false)}
+        />
       )}
     </div>
   );

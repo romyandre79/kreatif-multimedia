@@ -156,18 +156,19 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
             </div>
           )}
 
-          {/* TAB 2: IMAGE GENERATION */}
+          {/* TAB 2: IMAGE & VIDEO GENERATION */}
           {activeTab === "image" && (
             <div className="space-y-4">
               <div>
                 <label className="text-gray-400 uppercase text-[10px] font-semibold block mb-1">
-                  Provider Generator Gambar & Karakter
+                  Provider Generator Gambar & Video (Flow)
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { id: "comfy_local", label: "ComfyUI / SD WebUI (Lokal)", badge: "Offline GPU" },
+                    { id: "gemini_flow", label: "Google Gemini Flow (Imagen / Veo)", badge: "Google AI API" },
                     { id: "fal_ai", label: "Fal.ai (FLUX / SDXL)", badge: "Ultra Fast Cloud" },
-                    { id: "openai_dalle", label: "OpenAI DALL-E 3", badge: "Cloud" },
+                    { id: "comfy_local", label: "ComfyUI / SD WebUI (Lokal)", badge: "Offline GPU" },
+                    { id: "openai_dalle", label: "OpenAI DALL-E 3 / Sora", badge: "Cloud" },
                     { id: "midjourney", label: "Midjourney API", badge: "Cloud" },
                   ].map((prov) => (
                     <button
@@ -188,7 +189,41 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
                 </div>
               </div>
 
-              {imageSettings.provider === "comfy_local" ? (
+              {imageSettings.provider === "gemini_flow" ? (
+                <div className="p-3 bg-gradient-to-br from-indigo-950/40 to-cyan-950/30 rounded-lg border border-indigo-700/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-indigo-200 font-semibold flex items-center gap-1.5">
+                      <span>✨</span> Google Gemini Flow API Key
+                    </label>
+                    <span className="text-[10px] text-cyan-400 font-mono">Imagen 3 & Veo 2.0</span>
+                  </div>
+                  <input
+                    type="password"
+                    value={imageSettings.apiKey}
+                    onChange={(e) =>
+                      setImageSettings({ ...imageSettings, apiKey: e.target.value })
+                    }
+                    placeholder="AIzaSy..."
+                    className="w-full px-2.5 py-1.5 bg-gray-900/90 border border-indigo-600/50 rounded text-gray-200 font-mono text-[11px] focus:outline-none focus:border-cyan-400"
+                  />
+                  <div className="text-[10px] text-gray-400 leading-relaxed space-y-1">
+                    <p>
+                      🔑 Dapatkan API Key gratis di{" "}
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-cyan-400 underline hover:text-cyan-300"
+                      >
+                        Google AI Studio
+                      </a>
+                    </p>
+                    <p className="text-gray-500">
+                      Mendukung rendering gambar aset karakter, background scene otomatis, serta flow animasi video sinematik.
+                    </p>
+                  </div>
+                </div>
+              ) : imageSettings.provider === "comfy_local" ? (
                 <div className="p-3 bg-gray-800/40 rounded-lg border border-gray-800 space-y-2">
                   <label className="text-gray-300 font-medium block">
                     URL Endpoint ComfyUI Lokal

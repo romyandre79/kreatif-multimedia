@@ -5,9 +5,10 @@ interface ToolbarProps {
   projectTitle: string;
   onExport: () => void;
   onOpenAiSettings: () => void;
+  onOpenGeminiFlow: () => void;
 }
 
-export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: ToolbarProps) {
+export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOpenGeminiFlow }: ToolbarProps) {
   const setProjectTitle = useProjectStore((s) => s.setProjectTitle);
   const saveProjectToJson = useProjectStore((s) => s.saveProjectToJson);
   const loadProjectFromJson = useProjectStore((s) => s.loadProjectFromJson);
@@ -201,8 +202,17 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: To
         </button>
       </div>
 
-      {/* Action Buttons: AI Hub & Export */}
+      {/* Action Buttons: AI Hub, Gemini Flow & Export */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={onOpenGeminiFlow}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-950/80 to-purple-950/80 hover:from-indigo-900/90 hover:to-purple-900/90 border border-indigo-600/40 text-indigo-300 text-xs font-semibold transition-all shadow-sm shadow-indigo-950/50 hover:border-indigo-400"
+          title="Buka Google Gemini Flow Studio"
+        >
+          <span className="text-cyan-400">✨</span>
+          <span>Gemini Flow</span>
+        </button>
+
         <button
           onClick={onOpenAiSettings}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181b22] hover:bg-[#222631] border border-[#2b2f3d] text-cyan-400 text-xs font-medium transition-all shadow-sm hover:border-cyan-500/40"

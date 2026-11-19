@@ -5,12 +5,14 @@ import CanvasPreview from "./components/CanvasPreview/CanvasPreview";
 import Timeline from "./components/Timeline/Timeline";
 import Inspector from "./components/Inspector/Inspector";
 import ExportDialog from "./components/ExportDialog/ExportDialog";
+import AiSettingsModal from "./components/AiSettingsModal/AiSettingsModal";
 import Toolbar from "./components/Toolbar/Toolbar";
 import { useProjectStore } from "./stores/projectStore";
 
 function App() {
   const [activePanel, setActivePanel] = useState<"characters" | "episodes">("characters");
   const [showExport, setShowExport] = useState(false);
+  const [showAiSettings, setShowAiSettings] = useState(false);
   const projectTitle = useProjectStore((s) => s.meta.title);
 
   return (
@@ -19,6 +21,7 @@ function App() {
       <Toolbar
         projectTitle={projectTitle}
         onExport={() => setShowExport(true)}
+        onOpenAiSettings={() => setShowAiSettings(true)}
       />
 
       {/* Main Content Area */}
@@ -73,6 +76,9 @@ function App() {
 
       {/* Export Dialog (Modal) */}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
+
+      {/* AI Settings Modal */}
+      {showAiSettings && <AiSettingsModal onClose={() => setShowAiSettings(false)} />}
     </div>
   );
 }

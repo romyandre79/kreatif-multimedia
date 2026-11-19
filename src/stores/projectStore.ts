@@ -69,6 +69,24 @@ export interface Track {
   clips: Clip[];
 }
 
+export interface AiProviderConfig {
+  tts: {
+    provider: "piper_local" | "elevenlabs" | "openai_tts";
+    localModelPath: string;
+    apiKey: string;
+  };
+  imageGen: {
+    provider: "comfy_local" | "fal_ai" | "openai_dalle" | "midjourney";
+    endpoint: string;
+    apiKey: string;
+  };
+  autoSubtitle: {
+    provider: "whisper_local" | "whisper_api";
+    modelSize: "tiny" | "base" | "small" | "medium";
+    apiKey: string;
+  };
+}
+
 export interface ProjectMeta {
   title: string;
   resolution: { width: number; height: number };
@@ -86,6 +104,7 @@ interface ProjectStore {
   characters: Character[];
   episodes: Episode[];
   timeline: TimelineState;
+  aiSettings: AiProviderConfig;
   currentTime: number;
   selectedClipId: string | null;
   zoomLevel: number; // pixels per second
@@ -94,6 +113,7 @@ interface ProjectStore {
   setCurrentTime: (time: number) => void;
   setSelectedClipId: (clipId: string | null) => void;
   setZoomLevel: (zoom: number) => void;
+  updateAiSettings: (settings: Partial<AiProviderConfig>) => void;
   addCharacter: (charData?: Partial<Character>) => string;
   updateCharacter: (charId: string, updates: Partial<Character>) => void;
   deleteCharacter: (charId: string) => void;
@@ -262,6 +282,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ],
   },
 
+  aiSettings: {
+    tts: {
+      provider: "piper_local",
+      localModelPath: "models/piper/id_ID-medium.onnx",
+      apiKey: "",
+    },
+    imageGen: {
+      provider: "fal_ai",
+      endpoint: "http://127.0.0.1:8188",
+      apiKey: "",
+    },
+    autoSubtitle: {
+      provider: "whisper_local",
+      modelSize: "base",
+      apiKey: "",
+    },
+  },
+
   currentTime: 0,
   selectedClipId: "clip-demo-video",
   zoomLevel: 30, // 30px per detik
@@ -272,6 +310,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setSelectedClipId: (clipId) => set({ selectedClipId: clipId }),
 
   setZoomLevel: (zoom) => set({ zoomLevel: Math.max(10, Math.min(zoom, 120)) }),
+
+  updateAiSettings: (settings) =>
+    set((state) => ({
+      aiSettings: {
+        ...state.aiSettings,
+        ...settings,
+      },
+    })),
 
   addCharacter: (charData) => {
     const newId = genId("char");

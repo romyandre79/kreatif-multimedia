@@ -1,9 +1,10 @@
 interface ToolbarProps {
   projectTitle: string;
   onExport: () => void;
+  onOpenAiSettings: () => void;
 }
 
-export default function Toolbar({ projectTitle, onExport }: ToolbarProps) {
+export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: ToolbarProps) {
   return (
     <div className="h-11 flex items-center justify-between px-3 border-b border-gray-800 bg-gray-900/90 shrink-0">
       {/* Left — Logo & Project */}
@@ -40,8 +41,11 @@ export default function Toolbar({ projectTitle, onExport }: ToolbarProps) {
 
       {/* Right — Export & AI */}
       <div className="flex items-center gap-2">
-        <button className="text-xs px-2.5 py-1 bg-cyan-900/50 text-cyan-300 rounded-md
-          hover:bg-cyan-800/50 transition-colors border border-cyan-800/50">
+        <button
+          onClick={onOpenAiSettings}
+          className="text-xs px-2.5 py-1 bg-cyan-900/50 text-cyan-300 rounded-md
+            hover:bg-cyan-800/50 transition-colors border border-cyan-800/50"
+        >
           🤖 AI Provider
         </button>
         <button

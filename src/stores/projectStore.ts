@@ -563,12 +563,28 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (!scene) return "";
 
     const character = state.characters.find((c) => c.id === scene.character_id);
-    const voiceEngine = character?.voice.engine || state.aiSettings.tts.provider || "piper_local";
-    const voiceId = character?.voice.voice_id || state.aiSettings.tts.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM";
 
-    // JIKA MENGGUNAKAN ELEVENLABS CLOUD API
+    // Prioritas Voice Engine:
+    // Jika AI Setting memilih "elevenlabs", gunakan ElevenLabs secara global kecuali karakter secara eksplisit di-override
+    const globalTtsEngine = state.aiSettings.tts.provider || "piper_local";
+    const voiceEngine = character?.voice.engine === "inherit" || !character?.voice.engine
+      ? globalTtsEngine
+      : character.voice.engine || globalTtsEngine;
+
+    const voiceId =
+      (character?.voice.engine === "elevenlabs" && character.voice.voice_id) ||
+      state.aiSettings.tts.elevenLabsVoiceId ||
+      character?.voice.voice_id ||
+      "21m00Tcm4TlvDq8ikWAM";
+
+    // 1. JIKA MENGGUNAKAN ELEVENLABS CLOUD API
     if (voiceEngine === "elevenlabs") {
       const apiKey = state.aiSettings.tts.apiKey;
+      if (!apiKey) {
+        alert("API Key ElevenLabs belum diisi! Silakan buka menu 'AI Engine' di toolbar untuk memasukkan API Key.");
+        throw new Error("ElevenLabs API Key belum diisi.");
+      }
+
       try {
         const { audioUrl, duration } = await generateElevenLabsSpeech(
           apiKey,

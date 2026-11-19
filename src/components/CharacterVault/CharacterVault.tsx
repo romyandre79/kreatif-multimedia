@@ -214,7 +214,7 @@ export default function CharacterVault() {
                 <div>
                   <label className="text-[10px] text-gray-400 block mb-0.5">Engine Suara</label>
                   <select
-                    value={activeChar.voice.engine}
+                    value={activeChar.voice.engine || "inherit"}
                     onChange={(e) =>
                       updateCharacter(activeChar.id, {
                         voice: { ...activeChar.voice, engine: e.target.value },
@@ -222,6 +222,7 @@ export default function CharacterVault() {
                     }
                     className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-gray-200 text-[11px]"
                   >
+                    <option value="inherit">🌐 Ikuti AI Settings Global</option>
                     <option value="elevenlabs">ElevenLabs (Cloud AI)</option>
                     <option value="piper_local">Piper TTS (Lokal Offline)</option>
                     <option value="openai_tts">OpenAI TTS (Cloud)</option>
@@ -251,14 +252,15 @@ export default function CharacterVault() {
                 </div>
               </div>
 
-              {/* Pilihan Suara Spesifik (Voice ID) jika ElevenLabs */}
-              {activeChar.voice.engine === "elevenlabs" && (
+              {/* Pilihan Suara Spesifik (Voice ID) jika ElevenLabs atau inherit setting global ElevenLabs */}
+              {(activeChar.voice.engine === "elevenlabs" ||
+                (activeChar.voice.engine === "inherit" && aiSettings.tts.provider === "elevenlabs")) && (
                 <div>
                   <label className="text-[10px] text-gray-400 block mb-0.5">
                     Pilihan Suara ElevenLabs
                   </label>
                   <select
-                    value={activeChar.voice.voice_id}
+                    value={activeChar.voice.voice_id || aiSettings.tts.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM"}
                     onChange={(e) =>
                       updateCharacter(activeChar.id, {
                         voice: { ...activeChar.voice, voice_id: e.target.value },

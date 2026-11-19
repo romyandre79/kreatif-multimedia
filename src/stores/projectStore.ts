@@ -99,7 +99,16 @@ interface ProjectStore {
   deleteCharacter: (charId: string) => void;
   addCharacterAsset: (charId: string, assetUrl: string) => void;
   removeCharacterAsset: (charId: string, assetIndex: number) => void;
-  addEpisode: () => void;
+  // Episode & Scene CRUD Actions
+  addEpisode: (title?: string) => string;
+  updateEpisode: (episodeId: string, updates: Partial<Episode>) => void;
+  deleteEpisode: (episodeId: string) => void;
+  addSceneToEpisode: (episodeId: string, sceneData?: Partial<Scene>) => string;
+  updateScene: (episodeId: string, sceneId: string, updates: Partial<Scene>) => void;
+  deleteScene: (episodeId: string, sceneId: string) => void;
+  generateSceneAudio: (episodeId: string, sceneId: string) => Promise<string>;
+  insertSceneToTimeline: (episodeId: string, sceneId: string) => void;
+  insertEpisodeToTimeline: (episodeId: string) => void;
   addTrack: (type: Track["type"]) => void;
   removeTrack: (trackId: string) => void;
 
@@ -320,17 +329,169 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }),
     })),
 
-  addEpisode: () =>
+  addEpisode: (title) => {
+    const newId = genId("ep");
     set((state) => ({
       episodes: [
         ...state.episodes,
         {
-          id: genId("ep"),
-          title: `Episode ${state.episodes.length + 1}`,
-          scenes: [],
+          id: newId,
+          title: title || `Episode ${state.episodes.length + 1}`,
+          scenes: [
+            {
+              scene_id: genId("sc"),
+              character_id: state.characters[0]?.id || "",
+              script: "Tulis naskah dialog untuk scene pertama di sini...",
+              audio_url: "",
+              duration: 4.0,
+            },
+          ],
         },
       ],
+    }));
+    return newId;
+  },
+
+  updateEpisode: (episodeId, updates) =>
+    set((state) => ({
+      episodes: state.episodes.map((ep) =>
+        ep.id === episodeId ? { ...ep, ...updates } : ep
+      ),
     })),
+
+  deleteEpisode: (episodeId) =>
+    set((state) => ({
+      episodes: state.episodes.filter((ep) => ep.id !== episodeId),
+    })),
+
+  addSceneToEpisode: (episodeId, sceneData) => {
+    const newSceneId = genId("sc");
+    set((state) => ({
+      episodes: state.episodes.map((ep) => {
+        if (ep.id !== episodeId) return ep;
+        const newScene: Scene = {
+          scene_id: newSceneId,
+          character_id: sceneData?.character_id || state.characters[0]?.id || "",
+          script: sceneData?.script || `Scene ${ep.scenes.length + 1}: dialog baru...`,
+          audio_url: sceneData?.audio_url || "",
+          duration: sceneData?.duration || 3.5,
+        };
+        return { ...ep, scenes: [...ep.scenes, newScene] };
+      }),
+    }));
+    return newSceneId;
+  },
+
+  updateScene: (episodeId, sceneId, updates) =>
+    set((state) => ({
+      episodes: state.episodes.map((ep) => {
+        if (ep.id !== episodeId) return ep;
+        return {
+          ...ep,
+          scenes: ep.scenes.map((sc) =>
+            sc.scene_id === sceneId ? { ...sc, ...updates } : sc
+          ),
+        };
+      }),
+    })),
+
+  deleteScene: (episodeId, sceneId) =>
+    set((state) => ({
+      episodes: state.episodes.map((ep) => {
+        if (ep.id !== episodeId) return ep;
+        return {
+          ...ep,
+          scenes: ep.scenes.filter((sc) => sc.scene_id !== sceneId),
+        };
+      }),
+    })),
+
+  generateSceneAudio: async (episodeId, sceneId) => {
+    const state = get();
+    const episode = state.episodes.find((e) => e.id === episodeId);
+    const scene = episode?.scenes.find((s) => s.scene_id === sceneId);
+    if (!scene) return "";
+
+    const character = state.characters.find((c) => c.id === scene.character_id);
+    const voiceEngine = character?.voice.engine || "piper_local";
+
+    // Hitung perkiraan durasi audio berdasarkan jumlah kata naskah (~130 kata per menit)
+    const wordCount = scene.script.trim().split(/\s+/).length;
+    const estimatedDuration = Math.max(2.0, (wordCount / 130) * 60);
+
+    const mockAudioUrl = `cache/audio/${scene.scene_id}_${voiceEngine}.wav`;
+
+    get().updateScene(episodeId, sceneId, {
+      audio_url: mockAudioUrl,
+      duration: parseFloat(estimatedDuration.toFixed(1)),
+    });
+
+    return mockAudioUrl;
+  },
+
+  insertSceneToTimeline: (episodeId, sceneId) => {
+    const state = get();
+    const episode = state.episodes.find((e) => e.id === episodeId);
+    const scene = episode?.scenes.find((s) => s.scene_id === sceneId);
+    if (!scene) return;
+
+    const character = state.characters.find((c) => c.id === scene.character_id);
+
+    // Cari atau buat track
+    let subTrack = state.timeline.tracks.find((t) => t.type === "subtitle");
+    let audioTrack = state.timeline.tracks.find((t) => t.type === "audio");
+    let charTrack = state.timeline.tracks.find((t) => t.type === "image");
+
+    const startTime = state.currentTime;
+    const endTime = startTime + scene.duration;
+
+    // 1. Masukkan Subtitle
+    if (subTrack) {
+      get().addClipToTrack(subTrack.id, {
+        text: `[${character?.name || "Karakter"}]: ${scene.script}`,
+        start: startTime,
+        end: endTime,
+      });
+    }
+
+    // 2. Masukkan Audio
+    if (audioTrack && scene.audio_url) {
+      get().addClipToTrack(audioTrack.id, {
+        source: scene.audio_url,
+        start: startTime,
+        end: endTime,
+        volume: 1.0,
+      });
+    }
+
+    // 3. Masukkan Avatar Karakter jika ada
+    if (charTrack && character?.avatar) {
+      get().addClipToTrack(charTrack.id, {
+        source: character.avatar,
+        start: startTime,
+        end: endTime,
+        chroma_key: {
+          enabled: true,
+          color: "#00FF00",
+          similarity: 0.15,
+          smoothness: 0.05,
+        },
+      });
+    }
+
+    // Geser playhead ke akhir scene yang baru dimasukkan
+    get().setCurrentTime(endTime);
+  },
+
+  insertEpisodeToTimeline: (episodeId) => {
+    const state = get();
+    const episode = state.episodes.find((e) => e.id === episodeId);
+    if (!episode || episode.scenes.length === 0) return;
+
+    for (const scene of episode.scenes) {
+      get().insertSceneToTimeline(episodeId, scene.scene_id);
+    }
+  },
 
   addTrack: (type) =>
     set((state) => {

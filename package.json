@@ -1,0 +1,31 @@
+{
+  "name": "kreatif-multimedia",
+  "version": "1.0.0",
+  "description": "Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (Windows, Linux, macOS) yang menggabungkan kemampuan video editor tradisional (seperti CapCut / PowerDirector) dengan fitur *Storyboarding* dan manajemen karakter berbasis AI (Lokal & Cloud).",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@tauri-apps/cli": "^2.12.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
+  }
+}

@@ -1,53 +1,325 @@
+import React, { useState, useRef } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 
 export default function CharacterVault() {
   const characters = useProjectStore((s) => s.characters);
   const addCharacter = useProjectStore((s) => s.addCharacter);
+  const updateCharacter = useProjectStore((s) => s.updateCharacter);
+  const deleteCharacter = useProjectStore((s) => s.deleteCharacter);
+  const addCharacterAsset = useProjectStore((s) => s.addCharacterAsset);
+  const removeCharacterAsset = useProjectStore((s) => s.removeCharacterAsset);
+  const addClipToTrack = useProjectStore((s) => s.addClipToTrack);
+  const tracks = useProjectStore((s) => s.timeline.tracks);
+
+  const [selectedCharId, setSelectedCharId] = useState<string | null>(
+    characters[0]?.id || null
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const activeChar = characters.find((c) => c.id === selectedCharId) || null;
+
+  // Handle upload avatar / foto profil
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activeChar || !e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    const url = URL.createObjectURL(file);
+    updateCharacter(activeChar.id, { avatar: url });
+    // Masukkan juga ke galeri aset jika belum ada
+    if (!activeChar.assets.includes(url)) {
+      addCharacterAsset(activeChar.id, url);
+    }
+  };
+
+  // Handle upload variasi gambar pose / ekspresi
+  const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activeChar || !e.target.files) return;
+    Array.from(e.target.files).forEach((file) => {
+      const url = URL.createObjectURL(file);
+      addCharacterAsset(activeChar.id, url);
+    });
+  };
+
+  // Tambahkan aset karakter ke Timeline track "image" secara instan
+  const insertToTimeline = (assetUrl: string) => {
+    let charTrack = tracks.find((t) => t.type === "image");
+    if (!charTrack) {
+      charTrack = tracks[0];
+    }
+    if (charTrack) {
+      addClipToTrack(charTrack.id, {
+        source: assetUrl,
+        crop: { x: 0, y: 0, width: 1920, height: 1080 },
+        transform: { scale: 0.8, x: 0, y: 0, rotation: 0 },
+        chroma_key: {
+          enabled: true,
+          color: "#00FF00",
+          similarity: 0.15,
+          smoothness: 0.05,
+        },
+      });
+    }
+  };
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col h-full space-y-3 text-xs select-none">
+      {/* Header & Add Button */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-300">Daftar Karakter</h3>
+        <div>
+          <h3 className="font-semibold text-gray-200">🎭 Karakter Vault</h3>
+          <p className="text-[10px] text-gray-400">{characters.length} Karakter Tersedia</p>
+        </div>
         <button
-          onClick={addCharacter}
-          className="text-xs px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-md transition-colors"
+          onClick={() => {
+            const newId = addCharacter({
+              name: `Karakter Baru ${characters.length + 1}`,
+              description: "Deskripsi penampilan, sifat, dan gaya visual...",
+            });
+            setSelectedCharId(newId);
+          }}
+          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition-colors"
         >
           + Tambah
         </button>
       </div>
 
-      {characters.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 text-sm">
-          <div className="text-3xl mb-2">🎭</div>
-          <p>Belum ada karakter.</p>
-          <p className="text-xs mt-1">Klik "+ Tambah" untuk membuat karakter baru.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {characters.map((char) => (
-            <div
+      {/* List Karakter (Horizontal Chip / Grid) */}
+      <div className="flex gap-2 overflow-x-auto pb-1 border-b border-gray-800">
+        {characters.map((char) => {
+          const isSelected = char.id === selectedCharId;
+          return (
+            <button
               key={char.id}
-              className="p-3 bg-gray-800 rounded-lg border border-gray-700 hover:border-indigo-500/50 cursor-pointer transition-colors"
+              onClick={() => {
+                setSelectedCharId(char.id);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition-all ${
+                isSelected
+                  ? "bg-indigo-950/70 border-indigo-500 text-indigo-200"
+                  : "bg-gray-800/80 border-gray-700 text-gray-400 hover:text-gray-200"
+              }`}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-lg shrink-0">
-                  {char.avatar ? "🖼️" : "👤"}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{char.name}</p>
-                  <p className="text-xs text-gray-400 truncate">{char.description || "Belum ada deskripsi"}</p>
-                </div>
+              <div className="w-5 h-5 rounded-full overflow-hidden bg-gray-700 shrink-0 flex items-center justify-center">
+                {char.avatar ? (
+                  <img src={char.avatar} alt={char.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span>👤</span>
+                )}
               </div>
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded text-gray-400">
-                  🎤 {char.voice.engine === "piper_local" ? "Piper (Lokal)" : char.voice.engine}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded text-gray-400">
-                  🖼️ {char.assets.length} aset
-                </span>
+              <span className="font-medium truncate max-w-[100px]">{char.name}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Detail Karakter & Galeri Aset */}
+      {activeChar ? (
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {/* Card Info Utama */}
+          <div className="bg-gray-800/60 p-3 rounded-lg border border-gray-700/80 space-y-2.5">
+            <div className="flex items-start gap-3">
+              {/* Avatar Box (Bisa Diklik untuk Ganti Foto) */}
+              <div
+                onClick={() => avatarInputRef.current?.click()}
+                className="w-16 h-16 rounded-lg bg-gray-750 border-2 border-dashed border-gray-600 hover:border-indigo-400
+                  flex flex-col items-center justify-center cursor-pointer overflow-hidden group shrink-0 relative transition-colors"
+                title="Klik untuk upload foto avatar"
+              >
+                {activeChar.avatar ? (
+                  <>
+                    <img src={activeChar.avatar} alt={activeChar.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white transition-opacity">
+                      Ganti
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center text-gray-400 group-hover:text-indigo-300">
+                    <span className="text-xl">📷</span>
+                    <span className="text-[9px] block">Upload</span>
+                  </div>
+                )}
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Info Nama & Aksi */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <input
+                    type="text"
+                    value={activeChar.name}
+                    onChange={(e) => updateCharacter(activeChar.id, { name: e.target.value })}
+                    className="font-semibold text-sm bg-transparent border-b border-transparent hover:border-gray-600 focus:border-indigo-500 focus:outline-none text-white w-full"
+                    placeholder="Nama Karakter..."
+                  />
+                  <button
+                    onClick={() => {
+                      if (confirm(`Yakin ingin menghapus karakter "${activeChar.name}"?`)) {
+                        deleteCharacter(activeChar.id);
+                        setSelectedCharId(characters.find((c) => c.id !== activeChar.id)?.id || null);
+                      }
+                    }}
+                    className="text-gray-500 hover:text-red-400 p-1 transition-colors"
+                    title="Hapus Karakter"
+                  >
+                    🗑️
+                  </button>
+                </div>
+
+                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-gray-400">
+                  <span className="px-1.5 py-0.5 bg-gray-700/60 rounded">
+                    🎙️ {activeChar.voice.voice_id}
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-gray-700/60 rounded">
+                    🖼️ {activeChar.assets.length} Pose
+                  </span>
+                </div>
               </div>
             </div>
-          ))}
+
+            {/* Deskripsi & Penjelasan Karakter (Prompt/Lore AI) */}
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">
+                📖 Penjelasan / Visual Lore Karakter
+              </label>
+              <textarea
+                rows={3}
+                value={activeChar.description}
+                onChange={(e) => updateCharacter(activeChar.id, { description: e.target.value })}
+                placeholder="Penjelasan fisik, kepribadian, gaya pakaian, atau prompt visual konsisten untuk AI..."
+                className="w-full px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 text-xs focus:border-indigo-500 focus:outline-none resize-none"
+              />
+            </div>
+
+            {/* Suara Karakter (Voice Setting) */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-700/50">
+              <div>
+                <label className="text-[10px] text-gray-400 block mb-0.5">Engine Suara</label>
+                <select
+                  value={activeChar.voice.engine}
+                  onChange={(e) =>
+                    updateCharacter(activeChar.id, {
+                      voice: { ...activeChar.voice, engine: e.target.value },
+                    })
+                  }
+                  className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-gray-200 text-[11px]"
+                >
+                  <option value="piper_local">Piper TTS (Lokal)</option>
+                  <option value="elevenlabs">ElevenLabs (Cloud)</option>
+                  <option value="openai_tts">OpenAI TTS (Cloud)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-gray-400 block mb-0.5">Kecepatan Bicara</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.05"
+                    value={activeChar.voice.speed}
+                    onChange={(e) =>
+                      updateCharacter(activeChar.id, {
+                        voice: { ...activeChar.voice, speed: parseFloat(e.target.value) },
+                      })
+                    }
+                    className="w-full h-1.5 bg-gray-700 rounded appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <span className="font-mono text-[10px] text-gray-400 w-6">
+                    {activeChar.voice.speed.toFixed(2)}x
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Galeri Gambar / Pose Karakter */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-gray-300 text-[11px] uppercase tracking-wider">
+                  🖼️ Pose & Ekspresi Karakter
+                </h4>
+                <p className="text-[9px] text-gray-500">Klik aset untuk memasukkan ke Timeline</p>
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-indigo-300 border border-indigo-900/60 rounded text-[10px] transition-colors"
+              >
+                + Upload Pose
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleAssetUpload}
+                className="hidden"
+              />
+            </div>
+
+            {activeChar.assets.length === 0 ? (
+              <div className="border border-dashed border-gray-800 rounded-lg p-5 text-center text-gray-500">
+                <p className="text-xl mb-1">🖼️</p>
+                <p>Belum ada gambar pose.</p>
+                <p className="text-[10px] mt-0.5 text-gray-600">
+                  Upload file PNG transparan / green-screen untuk karakter ini.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {activeChar.assets.map((asset, index) => (
+                  <div
+                    key={index}
+                    className="group relative aspect-square rounded-lg bg-gray-900 border border-gray-800 hover:border-indigo-500 overflow-hidden cursor-pointer"
+                  >
+                    <img
+                      src={asset}
+                      alt={`Pose ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onClick={() => insertToTimeline(asset)}
+                      title="Klik untuk masukkan ke Timeline video"
+                    />
+
+                    {/* Quick Action Overlay */}
+                    <div className="absolute inset-x-0 bottom-0 p-1 bg-black/80 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateCharacter(activeChar.id, { avatar: asset });
+                        }}
+                        className="text-[9px] text-indigo-300 hover:text-white"
+                        title="Jadikan Avatar Utama"
+                      >
+                        ⭐
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeCharacterAsset(activeChar.id, index);
+                        }}
+                        className="text-[9px] text-red-400 hover:text-red-200"
+                        title="Hapus Aset Ini"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 p-4">
+          <span className="text-3xl mb-2">🎭</span>
+          <p>Belum ada karakter yang dipilih.</p>
         </div>
       )}
     </div>

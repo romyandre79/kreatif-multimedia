@@ -94,7 +94,11 @@ interface ProjectStore {
   setCurrentTime: (time: number) => void;
   setSelectedClipId: (clipId: string | null) => void;
   setZoomLevel: (zoom: number) => void;
-  addCharacter: () => void;
+  addCharacter: (charData?: Partial<Character>) => string;
+  updateCharacter: (charId: string, updates: Partial<Character>) => void;
+  deleteCharacter: (charId: string) => void;
+  addCharacterAsset: (charId: string, assetUrl: string) => void;
+  removeCharacterAsset: (charId: string, assetIndex: number) => void;
   addEpisode: () => void;
   addTrack: (type: Track["type"]) => void;
   removeTrack: (trackId: string) => void;
@@ -260,17 +264,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   setZoomLevel: (zoom) => set({ zoomLevel: Math.max(10, Math.min(zoom, 120)) }),
 
-  addCharacter: () =>
+  addCharacter: (charData) => {
+    const newId = genId("char");
     set((state) => ({
       characters: [
         ...state.characters,
         {
-          id: genId("char"),
-          name: `Karakter ${state.characters.length + 1}`,
-          description: "",
-          avatar: "",
-          assets: [],
-          voice: {
+          id: newId,
+          name: charData?.name || `Karakter ${state.characters.length + 1}`,
+          description: charData?.description || "",
+          avatar: charData?.avatar || "",
+          assets: charData?.assets || [],
+          voice: charData?.voice || {
             engine: "piper_local",
             voice_id: "id_ID-default",
             pitch: 1.0,
@@ -278,6 +283,41 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           },
         },
       ],
+    }));
+    return newId;
+  },
+
+  updateCharacter: (charId, updates) =>
+    set((state) => ({
+      characters: state.characters.map((c) =>
+        c.id === charId ? { ...c, ...updates } : c
+      ),
+    })),
+
+  deleteCharacter: (charId) =>
+    set((state) => ({
+      characters: state.characters.filter((c) => c.id !== charId),
+    })),
+
+  addCharacterAsset: (charId, assetUrl) =>
+    set((state) => ({
+      characters: state.characters.map((c) => {
+        if (c.id !== charId) return c;
+        const assets = [...c.assets, assetUrl];
+        // Jika belum ada avatar, jadikan aset pertama sebagai avatar
+        const avatar = c.avatar || assetUrl;
+        return { ...c, assets, avatar };
+      }),
+    })),
+
+  removeCharacterAsset: (charId, assetIndex) =>
+    set((state) => ({
+      characters: state.characters.map((c) => {
+        if (c.id !== charId) return c;
+        const assets = c.assets.filter((_, idx) => idx !== assetIndex);
+        const avatar = c.avatar === c.assets[assetIndex] ? (assets[0] || "") : c.avatar;
+        return { ...c, assets, avatar };
+      }),
     })),
 
   addEpisode: () =>

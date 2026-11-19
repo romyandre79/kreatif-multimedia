@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { generateElevenLabsSpeech } from "../services/elevenlabs";
 import { generateSynthesizedVoiceWav, speakWithWebSpeech } from "../services/localTts";
+import { generateEpicBgmWav, generateHeroVoiceWav } from "../services/demoAudio";
 
 // --- Types ---
 
@@ -279,7 +280,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             id: "clip-demo-audio",
             trackId: "track-audio-1",
             characterId: "char-1",
-            source: "",
+            source: generateHeroVoiceWav(),
             start: 1.2,
             end: 7.2,
             source_start: 0,
@@ -296,7 +297,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         id: "track-audio-bgm",
         type: "audio",
         name: "Musik Latar (MP3 / BGM)",
-        clips: [],
+        clips: [
+          {
+            id: "clip-demo-bgm",
+            trackId: "track-audio-bgm",
+            source: generateEpicBgmWav(),
+            start: 0,
+            end: 15.0,
+            source_start: 0,
+            source_end: 15.0,
+            volume: 0.45,
+            fade_in: 1.0,
+            fade_out: 1.5,
+            transition_in: null,
+            transition_out: null,
+          },
+        ],
       },
       {
         id: "track-sub-1",

@@ -79,6 +79,7 @@ export interface AiProviderConfig {
     provider: "piper_local" | "elevenlabs" | "openai_tts";
     localModelPath: string;
     apiKey: string;
+    elevenLabsVoiceId?: string;
   };
   imageGen: {
     provider: "gemini_flow" | "comfy_local" | "fal_ai" | "openai_dalle" | "midjourney";
@@ -347,6 +348,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       provider: "piper_local",
       localModelPath: "models/piper/id_ID-medium.onnx",
       apiKey: "",
+      elevenLabsVoiceId: "21m00Tcm4TlvDq8ikWAM",
     },
     imageGen: {
       provider: "gemini_flow",
@@ -562,7 +564,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     const character = state.characters.find((c) => c.id === scene.character_id);
     const voiceEngine = character?.voice.engine || state.aiSettings.tts.provider || "piper_local";
-    const voiceId = character?.voice.voice_id || "21m00Tcm4TlvDq8ikWAM";
+    const voiceId = character?.voice.voice_id || state.aiSettings.tts.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM";
 
     // JIKA MENGGUNAKAN ELEVENLABS CLOUD API
     if (voiceEngine === "elevenlabs") {

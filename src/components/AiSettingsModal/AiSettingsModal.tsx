@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
+import { DEFAULT_ELEVENLABS_VOICES, fetchElevenLabsVoices, ElevenLabsVoice } from "../../services/elevenlabs";
 
 interface AiSettingsModalProps {
   onClose: () => void;
@@ -14,6 +15,17 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
   const [imageSettings, setImageSettings] = useState(aiSettings.imageGen);
   const [subSettings, setSubSettings] = useState(aiSettings.autoSubtitle);
   const [savedNotification, setSavedNotification] = useState(false);
+  const [elevenLabsVoiceList, setElevenLabsVoiceList] = useState<ElevenLabsVoice[]>(DEFAULT_ELEVENLABS_VOICES);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+
+  useEffect(() => {
+    if (ttsSettings.apiKey && ttsSettings.provider === "elevenlabs") {
+      setIsLoadingVoices(true);
+      fetchElevenLabsVoices(ttsSettings.apiKey)
+        .then((voices) => setElevenLabsVoiceList(voices))
+        .finally(() => setIsLoadingVoices(false));
+    }
+  }, [ttsSettings.apiKey, ttsSettings.provider]);
 
   const handleSave = () => {
     updateAiSettings({
@@ -135,22 +147,58 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
                   </p>
                 </div>
               ) : (
-                <div className="p-3 bg-gray-800/40 rounded-lg border border-gray-800 space-y-2">
-                  <label className="text-gray-300 font-medium block">
-                    API Key ({ttsSettings.provider.toUpperCase()})
-                  </label>
-                  <input
-                    type="password"
-                    value={ttsSettings.apiKey}
-                    onChange={(e) =>
-                      setTtsSettings({ ...ttsSettings, apiKey: e.target.value })
-                    }
-                    placeholder="sk-..."
-                    className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 font-mono text-[11px]"
-                  />
-                  <p className="text-[10px] text-gray-500">
-                    Kunci API disimpan secara aman di konfigurasi lokal aplikasi Anda.
-                  </p>
+                <div className="p-3 bg-gray-800/40 rounded-lg border border-gray-800 space-y-3">
+                  <div>
+                    <label className="text-gray-300 font-medium block mb-1">
+                      API Key ({ttsSettings.provider.toUpperCase()})
+                    </label>
+                    <input
+                      type="password"
+                      value={ttsSettings.apiKey}
+                      onChange={(e) =>
+                        setTtsSettings({ ...ttsSettings, apiKey: e.target.value })
+                      }
+                      placeholder="sk-..."
+                      className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 font-mono text-[11px]"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Kunci API disimpan secara aman di konfigurasi lokal aplikasi Anda.
+                    </p>
+                  </div>
+
+                  {ttsSettings.provider === "elevenlabs" && (
+                    <div className="pt-2 border-t border-gray-700/60 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-gray-300 font-medium text-[11px] flex items-center gap-1.5">
+                          <span>🎙️</span> Pilihan Model Karakter Voice (ElevenLabs)
+                        </label>
+                        {isLoadingVoices && (
+                          <span className="text-[10px] text-cyan-400 animate-pulse">
+                            Memuat daftar voice...
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={ttsSettings.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM"}
+                        onChange={(e) =>
+                          setTtsSettings({
+                            ...ttsSettings,
+                            elevenLabsVoiceId: e.target.value,
+                          })
+                        }
+                        className="w-full px-2.5 py-1.5 bg-gray-900 border border-indigo-700/60 rounded text-indigo-300 text-[11px] focus:outline-none focus:border-cyan-400"
+                      >
+                        {elevenLabsVoiceList.map((v) => (
+                          <option key={v.voice_id} value={v.voice_id}>
+                            🎙️ {v.name} {v.category ? `(${v.category})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-gray-400">
+                        Pilihan voice ini akan menjadi default jika karakter menggunakan ElevenLabs. Anda juga dapat memilih voice spesifik berbeda untuk setiap karakter di panel <strong>🎭 Karakter</strong>.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

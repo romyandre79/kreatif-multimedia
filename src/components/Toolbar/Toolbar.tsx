@@ -8,6 +8,7 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: ToolbarProps) {
+  const setProjectTitle = useProjectStore((s) => s.setProjectTitle);
   const saveProjectToJson = useProjectStore((s) => s.saveProjectToJson);
   const loadProjectFromJson = useProjectStore((s) => s.loadProjectFromJson);
   const importMediaFile = useProjectStore((s) => s.importMediaFile);
@@ -122,9 +123,14 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: To
         <div className="h-4 w-px bg-[#262a36] mx-1" />
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-300 font-medium max-w-[180px] truncate" title={projectTitle}>
-            {projectTitle}
-          </span>
+          <input
+            type="text"
+            value={projectTitle}
+            onChange={(e) => setProjectTitle(e.target.value)}
+            className="text-xs text-gray-200 font-semibold max-w-[180px] bg-transparent hover:bg-[#1a1d26] focus:bg-[#151720] border border-transparent hover:border-[#2d3140] focus:border-cyan-500 rounded px-1.5 py-0.5 focus:outline-none transition-all truncate"
+            title="Klik untuk mengubah nama proyek"
+            placeholder="Nama Proyek..."
+          />
           {notification && (
             <span className="text-[10px] font-medium px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full animate-pulse">
               {notification}

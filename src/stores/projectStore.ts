@@ -112,6 +112,7 @@ interface ProjectStore {
   zoomLevel: number; // pixels per second
 
   // History & File I/O Actions
+  setProjectTitle: (title: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -339,6 +340,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   currentTime: 0,
   selectedClipId: "clip-demo-video",
   zoomLevel: 30, // 30px per detik
+
+  setProjectTitle: (title) =>
+    set((state) => ({
+      meta: { ...state.meta, title: title.trim() || "Proyek Tanpa Judul" },
+    })),
 
   setCurrentTime: (time) =>
     set({ currentTime: Math.max(0, Math.min(time, get().meta.duration)) }),

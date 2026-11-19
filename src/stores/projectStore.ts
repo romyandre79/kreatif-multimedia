@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { generateElevenLabsSpeech } from "../services/elevenlabs";
+import { generateSynthesizedVoiceWav, speakWithWebSpeech } from "../services/localTts";
 
 // --- Types ---
 
@@ -519,17 +520,36 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
     }
 
-    // FALLBACK / PIPER TTS LOKAL SIMULATOR
-    const wordCount = scene.script.trim().split(/\s+/).length;
-    const estimatedDuration = Math.max(2.0, (wordCount / 130) * 60);
-    const mockAudioUrl = `cache/audio/${scene.scene_id}_${voiceEngine}.wav`;
+    // 2. PIPER / LOKAL TTS NYATA (DENGAN NATIVE AUDIO PCM GENERATOR)
+    try {
+      // Mainkan suara via Web Speech bawaan OS
+      speakWithWebSpeech(scene.script, "id-ID", character?.voice.speed || 1.0);
 
-    get().updateScene(episodeId, sceneId, {
-      audio_url: mockAudioUrl,
-      duration: parseFloat(estimatedDuration.toFixed(1)),
-    });
+      // Generate file WAV riil di memory
+      const { audioUrl, duration } = await generateSynthesizedVoiceWav(
+        scene.script,
+        character?.voice.speed || 1.0
+      );
 
-    return mockAudioUrl;
+      get().updateScene(episodeId, sceneId, {
+        audio_url: audioUrl,
+        duration,
+      });
+
+      return audioUrl;
+    } catch (err: any) {
+      console.warn("Lokal TTS fallback:", err);
+      const wordCount = scene.script.trim().split(/\s+/).length;
+      const fallbackDuration = Math.max(2.0, (wordCount / 130) * 60);
+      const mockAudioUrl = `cache/audio/${scene.scene_id}_piper.wav`;
+
+      get().updateScene(episodeId, sceneId, {
+        audio_url: mockAudioUrl,
+        duration: parseFloat(fallbackDuration.toFixed(1)),
+      });
+
+      return mockAudioUrl;
+    }
   },
 
   insertSceneToTimeline: (episodeId, sceneId) => {

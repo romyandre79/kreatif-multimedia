@@ -15,10 +15,6 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: To
   const redo = useProjectStore((s) => s.redo);
   const canUndo = useProjectStore((s) => s.canUndo);
   const canRedo = useProjectStore((s) => s.canRedo);
-  const selectedClipId = useProjectStore((s) => s.selectedClipId);
-  const currentTime = useProjectStore((s) => s.currentTime);
-  const splitClipAtTime = useProjectStore((s) => s.splitClipAtTime);
-  const deleteSelectedClip = useProjectStore((s) => s.deleteSelectedClip);
 
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -183,30 +179,6 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings }: To
         >
           <span>↪️</span>
           <span className="hidden md:inline">Redo</span>
-        </button>
-
-        <div className="w-px h-4 bg-gray-800 mx-1" />
-
-        {/* Split */}
-        <button
-          onClick={() => selectedClipId && splitClipAtTime(selectedClipId, currentTime)}
-          disabled={!selectedClipId}
-          className="flex items-center gap-1 px-2 py-1 text-gray-300 rounded hover:bg-gray-800 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Bagi klip pada posisi playhead (S)"
-        >
-          <span>✂️</span>
-          <span className="hidden md:inline">Split</span>
-        </button>
-
-        {/* Delete */}
-        <button
-          onClick={deleteSelectedClip}
-          disabled={!selectedClipId}
-          className="flex items-center gap-1 px-2 py-1 text-red-400 rounded hover:bg-red-950/40 hover:text-red-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Hapus klip terpilih (Delete)"
-        >
-          <span>🗑️</span>
-          <span className="hidden md:inline">Hapus</span>
         </button>
       </div>
 

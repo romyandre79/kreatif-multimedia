@@ -2,6 +2,9 @@
 setlocal enabledelayedexpansion
 title Kreatif Multimedia Studio - Compile Menu
 
+:: Pastikan path cargo / rust terbaca di sesi batch ini
+set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+
 :MENU
 cls
 echo ================================================================
@@ -27,6 +30,13 @@ cls
 echo ================================================================
 echo  Memulai Kompilasi Installer Windows (.exe & .msi)
 echo ================================================================
+where cargo >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] 'cargo' tidak ditemukan di PATH! Pastikan Rust sudah terinstall.
+    pause
+    goto MENU
+)
+
 echo 1. Building Frontend (Vite)...
 call npm run build
 if %errorlevel% neq 0 (

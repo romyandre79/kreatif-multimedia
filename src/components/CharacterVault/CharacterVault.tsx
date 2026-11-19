@@ -1,5 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
+import { DEFAULT_ELEVENLABS_VOICES, fetchElevenLabsVoices, ElevenLabsVoice } from "../../services/elevenlabs";
 
 export default function CharacterVault() {
   const characters = useProjectStore((s) => s.characters);
@@ -14,8 +15,16 @@ export default function CharacterVault() {
   const [selectedCharId, setSelectedCharId] = useState<string | null>(
     characters[0]?.id || null
   );
+  const [elevenLabsVoices, setElevenLabsVoices] = useState<ElevenLabsVoice[]>(DEFAULT_ELEVENLABS_VOICES);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const aiSettings = useProjectStore((s) => s.aiSettings);
+
+  useEffect(() => {
+    if (aiSettings.tts.apiKey) {
+      fetchElevenLabsVoices(aiSettings.tts.apiKey).then(setElevenLabsVoices);
+    }
+  }, [aiSettings.tts.apiKey]);
 
   const activeChar = characters.find((c) => c.id === selectedCharId) || null;
 
@@ -197,45 +206,71 @@ export default function CharacterVault() {
             </div>
 
             {/* Suara Karakter (Voice Setting) */}
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-700/50">
-              <div>
-                <label className="text-[10px] text-gray-400 block mb-0.5">Engine Suara</label>
-                <select
-                  value={activeChar.voice.engine}
-                  onChange={(e) =>
-                    updateCharacter(activeChar.id, {
-                      voice: { ...activeChar.voice, engine: e.target.value },
-                    })
-                  }
-                  className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-gray-200 text-[11px]"
-                >
-                  <option value="piper_local">Piper TTS (Lokal)</option>
-                  <option value="elevenlabs">ElevenLabs (Cloud)</option>
-                  <option value="openai_tts">OpenAI TTS (Cloud)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-gray-400 block mb-0.5">Kecepatan Bicara</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="1.5"
-                    step="0.05"
-                    value={activeChar.voice.speed}
+            <div className="space-y-2 pt-2 border-t border-gray-700/50">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-0.5">Engine Suara</label>
+                  <select
+                    value={activeChar.voice.engine}
                     onChange={(e) =>
                       updateCharacter(activeChar.id, {
-                        voice: { ...activeChar.voice, speed: parseFloat(e.target.value) },
+                        voice: { ...activeChar.voice, engine: e.target.value },
                       })
                     }
-                    className="w-full h-1.5 bg-gray-700 rounded appearance-none cursor-pointer accent-indigo-500"
-                  />
-                  <span className="font-mono text-[10px] text-gray-400 w-6">
-                    {activeChar.voice.speed.toFixed(2)}x
-                  </span>
+                    className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-gray-200 text-[11px]"
+                  >
+                    <option value="elevenlabs">ElevenLabs (Cloud AI)</option>
+                    <option value="piper_local">Piper TTS (Lokal Offline)</option>
+                    <option value="openai_tts">OpenAI TTS (Cloud)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-0.5">Kecepatan Bicara</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="1.5"
+                      step="0.05"
+                      value={activeChar.voice.speed}
+                      onChange={(e) =>
+                        updateCharacter(activeChar.id, {
+                          voice: { ...activeChar.voice, speed: parseFloat(e.target.value) },
+                        })
+                      }
+                      className="w-full h-1.5 bg-gray-700 rounded appearance-none cursor-pointer accent-indigo-500"
+                    />
+                    <span className="font-mono text-[10px] text-gray-400 w-6">
+                      {activeChar.voice.speed.toFixed(2)}x
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              {/* Pilihan Suara Spesifik (Voice ID) jika ElevenLabs */}
+              {activeChar.voice.engine === "elevenlabs" && (
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-0.5">
+                    Pilihan Suara ElevenLabs
+                  </label>
+                  <select
+                    value={activeChar.voice.voice_id}
+                    onChange={(e) =>
+                      updateCharacter(activeChar.id, {
+                        voice: { ...activeChar.voice, voice_id: e.target.value },
+                      })
+                    }
+                    className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-indigo-300 text-[11px]"
+                  >
+                    {elevenLabsVoices.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        🎙️ {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 

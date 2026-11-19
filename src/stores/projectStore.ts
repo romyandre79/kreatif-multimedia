@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { generateElevenLabsSpeech } from "../services/elevenlabs";
 
 // --- Types ---
 
@@ -493,12 +494,34 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (!scene) return "";
 
     const character = state.characters.find((c) => c.id === scene.character_id);
-    const voiceEngine = character?.voice.engine || "piper_local";
+    const voiceEngine = character?.voice.engine || state.aiSettings.tts.provider || "piper_local";
+    const voiceId = character?.voice.voice_id || "21m00Tcm4TlvDq8ikWAM";
 
-    // Hitung perkiraan durasi audio berdasarkan jumlah kata naskah (~130 kata per menit)
+    // JIKA MENGGUNAKAN ELEVENLABS CLOUD API
+    if (voiceEngine === "elevenlabs") {
+      const apiKey = state.aiSettings.tts.apiKey;
+      try {
+        const { audioUrl, duration } = await generateElevenLabsSpeech(
+          apiKey,
+          voiceId,
+          scene.script
+        );
+
+        get().updateScene(episodeId, sceneId, {
+          audio_url: audioUrl,
+          duration,
+        });
+
+        return audioUrl;
+      } catch (err: any) {
+        alert(`Gagal generate ElevenLabs: ${err.message}`);
+        throw err;
+      }
+    }
+
+    // FALLBACK / PIPER TTS LOKAL SIMULATOR
     const wordCount = scene.script.trim().split(/\s+/).length;
     const estimatedDuration = Math.max(2.0, (wordCount / 130) * 60);
-
     const mockAudioUrl = `cache/audio/${scene.scene_id}_${voiceEngine}.wav`;
 
     get().updateScene(episodeId, sceneId, {

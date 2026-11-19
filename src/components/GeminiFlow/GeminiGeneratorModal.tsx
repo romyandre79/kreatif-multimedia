@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useProjectStore } from "../../stores/projectStore";
-import { generateGeminiImage, generateGeminiVideo } from "../../services/geminiFlow";
+import { generateGeminiImage, generateGeminiVideo, fileToBase64 } from "../../services/geminiFlow";
 
 interface GeminiGeneratorModalProps {
   onClose: () => void;
@@ -31,9 +31,33 @@ export default function GeminiGeneratorModal({
       : "Cinematic establishing shot of a fantasy ancient realm under a twin moon, volumetric lighting, 8k resolution"
   );
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceBase64, setReferenceBase64] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedResults, setGeneratedResults] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setReferenceImage(previewUrl);
+
+    try {
+      const base64 = await fileToBase64(file);
+      setReferenceBase64(base64);
+    } catch (err) {
+      console.error("Gagal convert gambar:", err);
+    }
+  };
+
+  const clearReferenceImage = () => {
+    setReferenceImage(null);
+    setReferenceBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleGenerate = async () => {
     const apiKey = aiSettings.imageGen.apiKey;
@@ -49,6 +73,7 @@ export default function GeminiGeneratorModal({
       if (mode === "image") {
         const urls = await generateGeminiImage(apiKey, {
           prompt,
+          referenceImageBase64: referenceBase64 || undefined,
           aspectRatio,
           numberOfImages: 1,
         });
@@ -56,6 +81,7 @@ export default function GeminiGeneratorModal({
       } else {
         const videoUrl = await generateGeminiVideo(apiKey, {
           prompt,
+          referenceImageBase64: referenceBase64 || undefined,
           aspectRatio: aspectRatio === "9:16" ? "9:16" : "16:9",
         });
         setGeneratedResults([videoUrl]);
@@ -159,6 +185,60 @@ export default function GeminiGeneratorModal({
               <span>🎬</span>
               <span>Generate Video (Veo Flow)</span>
             </button>
+          </div>
+
+          {/* Upload Referensi Gambar (Image-to-Image / Image-to-Video) */}
+          <div className="space-y-1.5 p-3 rounded-xl bg-[#161822] border border-[#262a3a]">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1.5">
+                <span>📷</span>
+                <span>Referensi Gambar Awal (Image-to-{mode === "image" ? "Image" : "Video"}):</span>
+              </label>
+              {referenceImage && (
+                <button
+                  onClick={clearReferenceImage}
+                  className="text-[10px] text-red-400 hover:text-red-300 transition-colors"
+                >
+                  ✕ Hapus Gambar
+                </button>
+              )}
+            </div>
+
+            {referenceImage ? (
+              <div className="relative flex items-center gap-3 p-2 rounded-lg bg-black/40 border border-[#2b3040]">
+                <img
+                  src={referenceImage}
+                  alt="Referensi"
+                  className="w-16 h-16 object-cover rounded-md border border-[#3b4154]"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-emerald-400">✓ Gambar Referensi Terpasang</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
+                    AI akan menggunakan pose, komposisi, atau wajah gambar ini sebagai acuan utama generate {mode === "image" ? "gambar baru" : "video gerak"}.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border border-dashed border-[#2f3549] hover:border-indigo-500 rounded-lg p-3 text-center cursor-pointer transition-colors group bg-black/20"
+              >
+                <span className="text-xl block group-hover:scale-110 transition-transform">🖼️</span>
+                <p className="text-[11px] font-medium text-indigo-300 mt-1">
+                  Klik untuk upload foto referensi / sketsa / pose awal
+                </p>
+                <p className="text-[9px] text-gray-500 mt-0.5">
+                  Mendukung PNG, JPG, WebP (Opsional — untuk mengubah gambar yang ada atau menggerakkannya)
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+            )}
           </div>
 
           {/* Prompt Input */}

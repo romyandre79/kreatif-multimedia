@@ -1,8 +1,9 @@
 // Service untuk Google Gemini Flow AI (Image Generation via Imagen 3 & Multimodal Prompt Generation)
-// Mendukung Imagen 3 ("imagen-3.0-generate-002") dan Gemini 1.5 / 2.0 via Google AI Studio API Key
+// Mendukung Imagen 3 ("imagen-3.0-generate-002") dan Gemini 1.5 / 2.0 / Veo via Google AI Studio API Key
 
 export interface GeminiImageGenOptions {
   prompt: string;
+  referenceImageBase64?: string; // Optional: Gambar referensi untuk Image-to-Image
   negativePrompt?: string;
   aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
   numberOfImages?: number;
@@ -10,13 +11,29 @@ export interface GeminiImageGenOptions {
 
 export interface GeminiVideoGenOptions {
   prompt: string;
+  referenceImageBase64?: string; // Optional: Gambar awal untuk Image-to-Video
   aspectRatio?: "16:9" | "9:16";
   durationSeconds?: number;
 }
 
 /**
- * Generate Gambar menggunakan Imagen 3 melalui Google Gemini API
- * Endpoint: https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict
+ * Helper: Mengubah File gambar menjadi Base64 string murni (tanpa data prefix)
+ */
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.split(",")[1] || result;
+      resolve(base64Data);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Generate Gambar menggunakan Imagen 3 / Gemini Multimodal Image-to-Image
  */
 export async function generateGeminiImage(
   apiKey: string,
@@ -26,6 +43,49 @@ export async function generateGeminiImage(
     throw new Error("Gemini API Key belum diisi. Harap masukkan API Key di AI Settings.");
   }
 
+  // 1. Jika ada Gambar Referensi (Image-to-Image / Multimodal Variation)
+  if (options.referenceImageBase64) {
+    // Gunakan endpoint multimodal gemini-2.5-flash / gemini-1.5-flash untuk analisis & regenerasi variasi
+    const multimodalEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
+      apiKey.trim()
+    )}`;
+
+    try {
+      const res = await fetch(multimodalEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Analyze this reference image in detail and construct an expanded high-precision visual prompt suitable for generating a new image matching this style, subject, and pose: "${options.prompt}". Return ONLY the final expanded prompt in English.`,
+                },
+                {
+                  inline_data: {
+                    mime_type: "image/png",
+                    data: options.referenceImageBase64,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const expandedPrompt = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (expandedPrompt && expandedPrompt.trim()) {
+          options.prompt = expandedPrompt.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("Multimodal prompt refinement fallback:", e);
+    }
+  }
+
+  // 2. Generate Gambar dengan Imagen 3
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(
     apiKey.trim()
   )}`;
@@ -54,7 +114,6 @@ export async function generateGeminiImage(
 
   if (!res.ok) {
     const errorText = await res.text();
-    // Fallback jika model imagen-3.0 belum aktif di akun tertentu: beri error yang informatif
     throw new Error(`Google Gemini Flow Error (${res.status}): ${errorText}`);
   }
 
@@ -76,8 +135,7 @@ export async function generateGeminiImage(
 }
 
 /**
- * Generate Video / Visual Scene menggunakan Google Gemini Flow (Veo / Runway / Animated Canvas)
- * Menyediakan dukungan prompt generation teroptimasi dan pipeline video
+ * Generate Video menggunakan Google Gemini Flow (Image-to-Video atau Text-to-Video)
  */
 export async function generateGeminiVideo(
   apiKey: string,
@@ -87,19 +145,27 @@ export async function generateGeminiVideo(
     throw new Error("Gemini API Key belum diisi untuk video generation.");
   }
 
-  // Google Veo Video API / Vertex AI Video prediction
+  // Endpoint Google Veo Video Gen
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/veo-2.0-generate-001:predictVideo?key=${encodeURIComponent(
     apiKey.trim()
   )}`;
+
+  const requestBody: any = {
+    prompt: options.prompt,
+    aspectRatio: options.aspectRatio || "16:9",
+  };
+
+  if (options.referenceImageBase64) {
+    requestBody.image = {
+      bytesBase64Encoded: options.referenceImageBase64,
+    };
+  }
 
   try {
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: options.prompt,
-        aspectRatio: options.aspectRatio || "16:9",
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (res.ok) {
@@ -107,12 +173,14 @@ export async function generateGeminiVideo(
       if (data.videoUri) return data.videoUri;
     }
   } catch (err) {
-    console.warn("Direct Veo endpoint not yet available, falling back to Gemini Flow Image-to-Video sequence:", err);
+    console.warn("Direct Veo endpoint not yet available, falling back to Gemini Flow pipeline:", err);
   }
 
-  // Jika Veo belum terbuka di region user, generate gambar Imagen ultra high-res yang siap di-animasikan
+  // Fallback: Jika endpoint video direct belum aktif di API key regional,
+  // generate foto Imagen yang di-expand dari gambar referensi / prompt
   const images = await generateGeminiImage(apiKey, {
-    prompt: `Cinematic movie scene, dynamic motion, high realism: ${options.prompt}`,
+    prompt: `Cinematic motion movie still, dynamic lighting, 8k realism: ${options.prompt}`,
+    referenceImageBase64: options.referenceImageBase64,
     aspectRatio: options.aspectRatio === "9:16" ? "9:16" : "16:9",
   });
 

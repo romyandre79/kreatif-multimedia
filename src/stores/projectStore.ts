@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { generateElevenLabsSpeech } from "../services/elevenlabs";
 import { generateSynthesizedVoiceWav } from "../services/localTts";
 import { generateNaturalSpeechAudio } from "../services/naturalTts";
-import { generateEpicBgmWav, generateHeroVoiceWav } from "../services/demoAudio";
 
 // --- Types ---
 
@@ -189,162 +188,111 @@ function captureSnapshot(state: {
   );
 }
 
-export const useProjectStore = create<ProjectStore>((set, get) => ({
-  meta: {
-    title: "Petualangan Ksatria Mystica",
-    resolution: { width: 1920, height: 1080 },
-    aspect_ratio: "16:9",
-    fps: 30,
-    duration: 15,
-  },
-
-  characters: [
-    {
-      id: "char-1",
-      name: "Bima Arya",
-      description: "Pendekar muda tangguh berambut perak dan berjubah merah dari Kerajaan Mystica.",
-      avatar: "/demo/hero_avatar.svg",
-      assets: [
-        "/demo/hero_avatar.svg"
-      ],
-      voice: {
-        engine: "piper_local",
-        voice_id: "id_ID-bima-medium",
-        pitch: 1.0,
-        speed: 1.0,
-      },
+// Helper untuk membuat struktur proyek baru yang bersih
+export function createEmptyProjectData() {
+  const charId = genId("char");
+  return {
+    meta: {
+      title: "Proyek Baru",
+      resolution: { width: 1920, height: 1080 },
+      aspect_ratio: "16:9",
+      fps: 30,
+      duration: 30,
     },
-  ],
-
-  episodes: [
-    {
-      id: "ep-1",
-      title: "Episode 1: Perjalanan di Hutan Larangan",
-      scenes: [
-        {
-          scene_id: "sc-1",
-          character_id: "char-1",
-          script: "Bulan purnama telah terbit sempurna. Kita harus segera tiba di kuil sebelum gerbang tertutup!",
-          audio_url: "",
-          duration: 6.0,
+    characters: [
+      {
+        id: charId,
+        name: "Karakter Utama",
+        description: "Deskripsi karakter...",
+        avatar: "",
+        assets: [],
+        voice: {
+          engine: "inherit",
+          voice_id: "21m00Tcm4TlvDq8ikWAM",
+          pitch: 1.0,
+          speed: 1.0,
         },
-      ],
-    },
-  ],
-
-  timeline: {
-    tracks: [
-      {
-        id: "track-video-1",
-        type: "video",
-        name: "Background Hutan",
-        clips: [
-          {
-            id: "clip-demo-bg",
-            trackId: "track-video-1",
-            source: "/demo/forest_bg.svg",
-            start: 0,
-            end: 12,
-            source_start: 0,
-            source_end: 12,
-            crop: { x: 0, y: 0, width: 1920, height: 1080 },
-            transform: { scale: 1, x: 0, y: 0, rotation: 0 },
-            transition_in: null,
-            transition_out: null,
-          },
-        ],
       },
+    ],
+    episodes: [
       {
-        id: "track-char-1",
-        type: "image",
-        name: "Karakter Bima",
-        clips: [
+        id: genId("ep"),
+        title: "Episode 1",
+        scenes: [
           {
-            id: "clip-demo-char",
-            trackId: "track-char-1",
-            characterId: "char-1",
-            source: "/demo/hero_avatar.svg",
-            start: 1.0,
-            end: 9.0,
-            source_start: null,
-            source_end: null,
-            transform: { scale: 0.75, x: -180, y: 60, rotation: 0 },
-            transition_in: { type: "fade_in", duration: 0.5 },
-            transition_out: { type: "fade_out", duration: 0.5 },
-          },
-        ],
-      },
-      {
-        id: "track-audio-1",
-        type: "audio",
-        name: "Voice Bima (TTS)",
-        clips: [
-          {
-            id: "clip-demo-audio",
-            trackId: "track-audio-1",
-            characterId: "char-1",
-            source: generateHeroVoiceWav(),
-            start: 1.2,
-            end: 7.2,
-            source_start: 0,
-            source_end: 6.0,
-            volume: 1.0,
-            fade_in: 0.1,
-            fade_out: 0.2,
-            transition_in: null,
-            transition_out: null,
-          },
-        ],
-      },
-      {
-        id: "track-audio-bgm",
-        type: "audio",
-        name: "Musik Latar (MP3 / BGM)",
-        clips: [
-          {
-            id: "clip-demo-bgm",
-            trackId: "track-audio-bgm",
-            source: generateEpicBgmWav(),
-            start: 0,
-            end: 15.0,
-            source_start: 0,
-            source_end: 15.0,
-            volume: 0.45,
-            fade_in: 1.0,
-            fade_out: 1.5,
-            transition_in: null,
-            transition_out: null,
-          },
-        ],
-      },
-      {
-        id: "track-sub-1",
-        type: "subtitle",
-        name: "Subtitle Naskah",
-        clips: [
-          {
-            id: "clip-demo-sub",
-            trackId: "track-sub-1",
-            characterId: "char-1",
-            text: "Bulan purnama telah terbit. Kita harus tiba sebelum gerbang tertutup!",
-            start: 1.2,
-            end: 7.2,
-            source_start: null,
-            source_end: null,
-            transition_in: null,
-            transition_out: null,
-            style: {
-              font_size: 26,
-              color: "#FFFFFF",
-              background_color: "rgba(0,0,0,0.8)",
-            },
+            scene_id: genId("sc"),
+            character_id: charId,
+            script: "Tulis naskah dialog pertama di sini...",
+            audio_url: "",
+            duration: 3.5,
           },
         ],
       },
     ],
-  },
+    timeline: {
+      tracks: [
+        {
+          id: genId("track-video"),
+          type: "video" as const,
+          name: "Video 1",
+          clips: [],
+        },
+        {
+          id: genId("track-image"),
+          type: "image" as const,
+          name: "Gambar 1",
+          clips: [],
+        },
+        {
+          id: genId("track-audio"),
+          type: "audio" as const,
+          name: "Audio 1",
+          clips: [],
+        },
+        {
+          id: genId("track-sub"),
+          type: "subtitle" as const,
+          name: "Subtitle 1",
+          clips: [],
+        },
+      ],
+    },
+  };
+}
 
-  aiSettings: {
+const LOCAL_STORAGE_KEY = "kreatif_studio_autosave_v1";
+
+// Coba muat proyek yang tersimpan di browser / desktop, atau mulai proyek baru jika belum pernah ada
+function getInitialProjectData() {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.timeline && parsed.meta) {
+        return {
+          meta: parsed.meta,
+          characters: parsed.characters || [],
+          episodes: parsed.episodes || [],
+          timeline: parsed.timeline,
+          aiSettings: parsed.ai_settings || parsed.aiSettings || undefined,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("Gagal load saved project dari storage:", e);
+  }
+  return createEmptyProjectData();
+}
+
+const initialData = getInitialProjectData();
+
+export const useProjectStore = create<ProjectStore>((set, get) => ({
+  meta: initialData.meta,
+  characters: initialData.characters,
+  episodes: initialData.episodes,
+  timeline: initialData.timeline,
+
+  aiSettings: (initialData as any).aiSettings || {
     tts: {
       provider: "piper_local",
       localModelPath: "models/piper/id_ID-medium.onnx",
@@ -364,78 +312,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   currentTime: 0,
-  selectedClipId: "clip-demo-video",
+  selectedClipId: null,
   zoomLevel: 30, // 30px per detik
 
   resetNewProject: () => {
     // Simpan snapshot untuk undo jika pengguna tidak sengaja reset
     undoStack.push(captureSnapshot(get()));
+    const freshData = createEmptyProjectData();
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     set({
-      meta: {
-        title: "Proyek Baru",
-        resolution: { width: 1920, height: 1080 },
-        aspect_ratio: "16:9",
-        fps: 30,
-        duration: 30,
-      },
-      characters: [
-        {
-          id: genId("char"),
-          name: "Karakter Utama",
-          description: "Deskripsi karakter...",
-          avatar: "",
-          assets: [],
-          voice: {
-            engine: "inherit",
-            voice_id: "21m00Tcm4TlvDq8ikWAM",
-            pitch: 1.0,
-            speed: 1.0,
-          },
-        },
-      ],
-      episodes: [
-        {
-          id: genId("ep"),
-          title: "Episode 1",
-          scenes: [
-            {
-              scene_id: genId("sc"),
-              character_id: "",
-              script: "Tulis naskah dialog pertama di sini...",
-              audio_url: "",
-              duration: 3.5,
-            },
-          ],
-        },
-      ],
-      timeline: {
-        tracks: [
-          {
-            id: genId("track-video"),
-            type: "video",
-            name: "Video 1",
-            clips: [],
-          },
-          {
-            id: genId("track-image"),
-            type: "image",
-            name: "Gambar 1",
-            clips: [],
-          },
-          {
-            id: genId("track-audio"),
-            type: "audio",
-            name: "Audio 1",
-            clips: [],
-          },
-          {
-            id: genId("track-sub"),
-            type: "subtitle",
-            name: "Subtitle 1",
-            clips: [],
-          },
-        ],
-      },
+      meta: freshData.meta,
+      characters: freshData.characters,
+      episodes: freshData.episodes,
+      timeline: freshData.timeline,
       currentTime: 0,
       selectedClipId: null,
     });
@@ -1131,3 +1020,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
 }));
+
+// Auto-save otomatis ke LocalStorage setiap ada perubahan state proyek
+useProjectStore.subscribe((state) => {
+  try {
+    const projectData = {
+      version: "1.0.0",
+      saved_at: new Date().toISOString(),
+      meta: state.meta,
+      ai_settings: state.aiSettings,
+      characters: state.characters,
+      episodes: state.episodes,
+      timeline: state.timeline,
+    };
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectData));
+  } catch (err) {
+    console.warn("Auto-save storage error:", err);
+  }
+});

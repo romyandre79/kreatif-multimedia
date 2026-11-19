@@ -4,10 +4,7 @@ import { useProjectStore, Clip, Track } from "../../stores/projectStore";
 export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(performance.now());
-
-  // Cache resource elemen video & gambar di memori agar rendering 60 FPS halus
   const mediaCacheRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map());
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -18,7 +15,6 @@ export default function CanvasPreview() {
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const aspectRatio = useProjectStore((s) => s.meta.aspect_ratio);
 
-  // Helper untuk mendapatkan / me-load elemen Image atau Video
   const getMediaElement = useCallback((source: string, type: "image" | "video") => {
     let el = mediaCacheRef.current.get(source);
     if (!el) {
@@ -31,7 +27,7 @@ export default function CanvasPreview() {
         const vid = document.createElement("video");
         vid.src = source;
         vid.crossOrigin = "anonymous";
-        vid.muted = true; // Preview muted agar autoplay lancar
+        vid.muted = true;
         vid.playsInline = true;
         vid.preload = "auto";
         mediaCacheRef.current.set(source, vid);
@@ -41,7 +37,6 @@ export default function CanvasPreview() {
     return el;
   }, []);
 
-  // Fungsi Render Frame Canvas berdasarkan currentTime
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -51,11 +46,9 @@ export default function CanvasPreview() {
     const width = canvas.width;
     const height = canvas.height;
 
-    // 1. Bersihkan background
-    ctx.fillStyle = "#000000";
+    ctx.fillStyle = "#090a0d";
     ctx.fillRect(0, 0, width, height);
 
-    // Kumpulkan semua klip yang aktif di currentTime, urutkan berdasarkan track layer
     const activeClips: { clip: Clip; track: Track }[] = [];
     for (const track of tracks) {
       for (const clip of track.clips) {
@@ -66,35 +59,33 @@ export default function CanvasPreview() {
     }
 
     if (activeClips.length === 0) {
-      // Jika tidak ada klip yang aktif, tampilkan grid transparan / checkerboard
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(0, 0, width, height);
-
-      ctx.strokeStyle = "#1e293b";
+      // Sleek Minimal Grid
+      ctx.strokeStyle = "#16181f";
       ctx.lineWidth = 1;
-      for (let x = 0; x < width; x += 40) {
+      for (let x = 0; x < width; x += 60) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, height);
         ctx.stroke();
       }
-      for (let y = 0; y < height; y += 40) {
+      for (let y = 0; y < height; y += 60) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
         ctx.stroke();
       }
 
-      ctx.fillStyle = "#64748b";
-      ctx.font = "14px Inter, sans-serif";
+      ctx.fillStyle = "#3a3f4d";
+      ctx.font = "500 13px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Tidak ada klip aktif pada posisi playhead ini", width / 2, height / 2);
-      ctx.font = "11px Inter, sans-serif";
-      ctx.fillText(`Playhead: ${currentTime.toFixed(2)}s / ${duration.toFixed(1)}s`, width / 2, height / 2 + 24);
+      ctx.fillText("Tidak ada media aktif pada timeline ini", width / 2, height / 2 - 4);
+      ctx.font = "11px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = "#272a34";
+      ctx.fillText(`${aspectRatio} • ${width}×${height}`, width / 2, height / 2 + 18);
       return;
     }
 
-    // 2. Render layer Video & Image
+    // Render layers
     for (const { clip, track } of activeClips) {
       if ((track.type === "video" || track.type === "image") && clip.source) {
         const media = getMediaElement(clip.source, track.type);
@@ -104,7 +95,6 @@ export default function CanvasPreview() {
           drawTransformedMedia(ctx, media, clip, width, height);
           ctx.restore();
         } else if (media instanceof HTMLVideoElement) {
-          // Sinkronisasi waktu video dengan playhead timeline
           const clipInternalTime = currentTime - clip.start + (clip.source_start || 0);
           if (Math.abs(media.currentTime - clipInternalTime) > 0.15) {
             media.currentTime = Math.max(0, clipInternalTime);
@@ -125,40 +115,38 @@ export default function CanvasPreview() {
       }
     }
 
-    // 3. Render Subtitle Track (Paling Atas)
+    // Subtitle Rendering
     for (const { clip, track } of activeClips) {
       if (track.type === "subtitle" && clip.text) {
         ctx.save();
-        ctx.font = "bold 24px 'Noto Sans', Inter, sans-serif";
+        ctx.font = "bold 26px system-ui, -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
 
         const text = clip.text;
         const textMetrics = ctx.measureText(text);
         const textWidth = textMetrics.width;
-        const boxPadding = 12;
-        const boxHeight = 36;
-        const boxY = height - 48;
+        const boxPadding = 16;
+        const boxHeight = 44;
+        const boxY = height - 44;
         const boxX = width / 2 - textWidth / 2 - boxPadding;
 
-        // Background kotak subtitle hitam transparan
-        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-        ctx.roundRect
-          ? ctx.roundRect(boxX, boxY - boxHeight + 8, textWidth + boxPadding * 2, boxHeight, 6)
-          : ctx.fillRect(boxX, boxY - boxHeight + 8, textWidth + boxPadding * 2, boxHeight);
-        ctx.fill();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(boxX, boxY - boxHeight + 8, textWidth + boxPadding * 2, boxHeight, 8);
+          ctx.fill();
+        } else {
+          ctx.fillRect(boxX, boxY - boxHeight + 8, textWidth + boxPadding * 2, boxHeight);
+        }
 
-        // Teks putih dengan shadow halus
-        ctx.fillStyle = "#FFFFFF";
-        ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
-        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#ffffff";
         ctx.fillText(text, width / 2, boxY);
         ctx.restore();
       }
     }
-  }, [currentTime, duration, tracks, isPlaying, getMediaElement]);
+  }, [currentTime, duration, tracks, isPlaying, getMediaElement, aspectRatio]);
 
-  // Fungsi Transform & Chroma Key Rendering
   const drawTransformedMedia = (
     ctx: CanvasRenderingContext2D,
     media: HTMLImageElement | HTMLVideoElement,
@@ -181,13 +169,11 @@ export default function CanvasPreview() {
     const mWidth = (media as HTMLVideoElement).videoWidth || (media as HTMLImageElement).naturalWidth || canvasWidth;
     const mHeight = (media as HTMLVideoElement).videoHeight || (media as HTMLImageElement).naturalHeight || canvasHeight;
 
-    // Menghitung aspect fit ke canvas
     const scale = Math.min(canvasWidth / mWidth, canvasHeight / mHeight);
     const drawW = mWidth * scale;
     const drawH = mHeight * scale;
 
     if (chroma && chroma.enabled) {
-      // Render dengan software chroma key sampling (CPU filter untuk Canvas 2D)
       const offscreen = document.createElement("canvas");
       offscreen.width = drawW;
       offscreen.height = drawH;
@@ -197,12 +183,11 @@ export default function CanvasPreview() {
         const imgData = offCtx.getImageData(0, 0, drawW, drawH);
         const data = imgData.data;
 
-        // Parse hex color key (misal "#00FF00")
         const hex = chroma.color.replace("#", "");
         const keyR = parseInt(hex.substring(0, 2) || "0", 16);
         const keyG = parseInt(hex.substring(2, 4) || "255", 16);
         const keyB = parseInt(hex.substring(4, 6) || "0", 16);
-        const simThreshold = (chroma.similarity || 0.15) * 441; // Euclidean distance max ~441.6
+        const simThreshold = (chroma.similarity || 0.15) * 441;
 
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i];
@@ -211,7 +196,7 @@ export default function CanvasPreview() {
           const dist = Math.sqrt((r - keyR) ** 2 + (g - keyG) ** 2 + (b - keyB) ** 2);
 
           if (dist < simThreshold) {
-            data[i + 3] = 0; // Transparan
+            data[i + 3] = 0;
           }
         }
         offCtx.putImageData(imgData, 0, 0);
@@ -222,7 +207,6 @@ export default function CanvasPreview() {
     }
   };
 
-  // Playback Loop dengan requestAnimationFrame
   useEffect(() => {
     let animId: number;
 
@@ -246,7 +230,6 @@ export default function CanvasPreview() {
 
     lastTimeRef.current = performance.now();
     animId = requestAnimationFrame(tick);
-    animationFrameRef.current = animId;
 
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, currentTime, duration, renderFrame, setCurrentTime]);
@@ -254,36 +237,92 @@ export default function CanvasPreview() {
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 100);
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
+    const f = Math.floor((seconds % 1) * 30);
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}:${f.toString().padStart(2, "0")}`;
   };
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full select-none bg-gray-950">
-      {/* Canvas Area */}
-      <div className="flex-1 flex items-center justify-center p-3 min-h-0 relative">
-        <canvas
-          ref={canvasRef}
-          width={1280}
-          height={720}
-          className="max-w-full max-h-full rounded-lg border border-gray-800 shadow-2xl bg-black object-contain"
-          style={{ aspectRatio: aspectRatio.replace(":", " / ") }}
-        />
+    <div ref={containerRef} className="flex flex-col h-full bg-[#0b0c0e] select-none">
+      {/* Top Monitor Bar */}
+      <div className="h-8 border-b border-[#1b1d24] px-4 flex items-center justify-between text-[11px] text-gray-400 shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-gray-200">Player Monitor</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#171920] border border-[#242731] text-cyan-400 font-mono">
+            {aspectRatio}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 font-mono text-[11px]">
+          <span className="text-cyan-400 font-bold">{formatTime(currentTime)}</span>
+          <span className="text-gray-600">/</span>
+          <span className="text-gray-400">{formatTime(duration)}</span>
+        </div>
       </div>
 
-      {/* Transport Controls */}
-      <div className="px-4 pb-2.5 flex items-center gap-3 bg-gray-900/60 border-t border-gray-800/80 pt-2 shrink-0">
-        <span className="text-xs text-indigo-400 font-mono w-20">
-          {formatTime(currentTime)}
-        </span>
-
-        {/* Scrubber */}
-        <div className="flex-1 relative h-2 group flex items-center">
-          <div className="absolute inset-0 bg-gray-800 rounded-full" />
-          <div
-            className="absolute left-0 top-0 h-full bg-indigo-500 rounded-full transition-all"
-            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+      {/* Canvas Viewport */}
+      <div className="flex-1 flex items-center justify-center p-4 min-h-0 relative">
+        <div className="relative shadow-2xl rounded-md overflow-hidden border border-[#21242d] bg-[#000000]">
+          <canvas
+            ref={canvasRef}
+            width={1280}
+            height={720}
+            className="max-w-full max-h-full block object-contain"
+            style={{ aspectRatio: aspectRatio.replace(":", " / ") }}
           />
+        </div>
+      </div>
+
+      {/* Bottom Transport Strip */}
+      <div className="h-11 border-t border-[#1b1d24] bg-[#111317] px-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setCurrentTime(0)}
+            className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-white hover:bg-[#1f222b] transition-colors"
+            title="Awal (Home)"
+          >
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+            </svg>
+          </button>
+
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            className={`h-7 px-3 flex items-center gap-1.5 rounded font-medium text-xs transition-all ${
+              isPlaying
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30"
+            }`}
+            title="Play / Pause (Space)"
+          >
+            {isPlaying ? (
+              <>
+                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+                <span>Pause</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>Play</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={() => setCurrentTime(duration)}
+            className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-white hover:bg-[#1f222b] transition-colors"
+            title="Akhir (End)"
+          >
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrubber slider */}
+        <div className="flex-1 mx-4 relative flex items-center">
           <input
             type="range"
             min={0}
@@ -291,37 +330,12 @@ export default function CanvasPreview() {
             step={0.05}
             value={currentTime}
             onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
-            className="absolute inset-0 w-full opacity-0 cursor-pointer"
+            className="w-full h-1 bg-[#232732] rounded-lg appearance-none cursor-pointer"
           />
         </div>
 
-        <span className="text-xs text-gray-500 font-mono w-20 text-right">
-          {formatTime(duration)}
-        </span>
-
-        {/* Playback Buttons */}
-        <div className="flex items-center gap-1.5 ml-2">
-          <button
-            onClick={() => setCurrentTime(0)}
-            className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors text-xs"
-            title="Ke Awal"
-          >
-            ⏮
-          </button>
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="p-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors shadow-lg shadow-indigo-950/40 text-xs"
-            title={isPlaying ? "Pause (Spasi)" : "Play (Spasi)"}
-          >
-            {isPlaying ? "⏸ Pause" : "▶ Play"}
-          </button>
-          <button
-            onClick={() => setCurrentTime(duration)}
-            className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors text-xs"
-            title="Ke Akhir"
-          >
-            ⏭
-          </button>
+        <div className="text-[11px] font-mono text-gray-500">
+          30 FPS
         </div>
       </div>
     </div>

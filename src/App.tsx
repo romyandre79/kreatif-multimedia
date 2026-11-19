@@ -16,68 +16,70 @@ function App() {
   const projectTitle = useProjectStore((s) => s.meta.title);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-gray-950 text-gray-100">
-      {/* Top Toolbar */}
+    <div className="flex flex-col h-screen w-screen bg-[#0e0f12] text-gray-200 select-none overflow-hidden font-sans">
+      {/* Top Professional Toolbar */}
       <Toolbar
         projectTitle={projectTitle}
         onExport={() => setShowExport(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Studio Work Area */}
       <div className="flex flex-1 min-h-0">
-        {/* Left Panel — Character Vault / Story Episode */}
-        <div className="w-72 flex flex-col border-r border-gray-800 bg-gray-900">
-          {/* Tab Switcher */}
-          <div className="flex border-b border-gray-800">
-            <button
-              onClick={() => setActivePanel("characters")}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                activePanel === "characters"
-                  ? "text-indigo-400 border-b-2 border-indigo-400 bg-gray-800/50"
-                  : "text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              🎭 Karakter
-            </button>
-            <button
-              onClick={() => setActivePanel("episodes")}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                activePanel === "episodes"
-                  ? "text-indigo-400 border-b-2 border-indigo-400 bg-gray-800/50"
-                  : "text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              📝 Episode
-            </button>
+        {/* Left Panel — Character & Story Studio */}
+        <aside className="w-80 flex flex-col border-r border-[#1d1f27] bg-[#121419]">
+          {/* Segmented Tab Switcher */}
+          <div className="p-2 border-b border-[#1d1f27] bg-[#101216]">
+            <div className="flex bg-[#181b22] p-0.5 rounded-lg border border-[#242733]">
+              <button
+                onClick={() => setActivePanel("characters")}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                  activePanel === "characters"
+                    ? "bg-[#252936] text-white shadow-sm shadow-black/40 border border-[#343949]"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                <span>🎭</span>
+                <span>Karakter</span>
+              </button>
+              <button
+                onClick={() => setActivePanel("episodes")}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                  activePanel === "episodes"
+                    ? "bg-[#252936] text-white shadow-sm shadow-black/40 border border-[#343949]"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                <span>📝</span>
+                <span>Episode</span>
+              </button>
+            </div>
           </div>
 
-          {/* Panel Content */}
+          {/* Panel Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-3">
             {activePanel === "characters" ? <CharacterVault /> : <StoryEpisode />}
           </div>
-        </div>
+        </aside>
 
-        {/* Center — Canvas Preview */}
-        <div className="flex-1 flex flex-col min-w-0 bg-gray-950">
+        {/* Center Canvas Preview Viewport */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[#090a0d]">
           <CanvasPreview />
-        </div>
+        </main>
 
-        {/* Right Panel — Inspector / Properties */}
-        <div className="w-72 border-l border-gray-800 bg-gray-900 overflow-y-auto">
+        {/* Right Inspector Sidebar */}
+        <aside className="w-80 border-l border-[#1d1f27] bg-[#121419] overflow-y-auto">
           <Inspector />
-        </div>
+        </aside>
       </div>
 
-      {/* Bottom — Timeline */}
-      <div className="h-64 border-t border-gray-800 bg-gray-900">
+      {/* Bottom Timeline Work Area */}
+      <div className="h-64 border-t border-[#1d1f27] bg-[#111317]">
         <Timeline />
       </div>
 
-      {/* Export Dialog (Modal) */}
+      {/* Modals */}
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
-
-      {/* AI Settings Modal */}
       {showAiSettings && <AiSettingsModal onClose={() => setShowAiSettings(false)} />}
     </div>
   );

@@ -32,6 +32,7 @@ export default function Timeline() {
   const deleteSelectedClip = useProjectStore((s) => s.deleteSelectedClip);
 
   const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const trackHeadersRef = useRef<HTMLDivElement>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [dragState, setDragState] = useState<{
     type: "move" | "trim-left" | "trim-right";
@@ -227,10 +228,19 @@ export default function Timeline() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Track Headers */}
         <div className="w-40 shrink-0 border-r border-[#1b1d24] bg-[#13151a] flex flex-col z-20">
-          <div className="h-6 border-b border-[#1b1d24] px-3 flex items-center text-[10px] text-gray-500 font-semibold tracking-wider uppercase">
+          <div className="h-6 border-b border-[#1b1d24] px-3 flex items-center text-[10px] text-gray-500 font-semibold tracking-wider uppercase shrink-0">
             Layers
           </div>
-          <div className="flex-1 overflow-y-hidden">
+          <div
+            ref={trackHeadersRef}
+            className="flex-1 overflow-y-hidden"
+            onWheel={(e) => {
+              // Jika user scroll mouse wheel saat cursor berada di kolom layer header, teruskan scroll ke tracks area
+              if (timelineContainerRef.current) {
+                timelineContainerRef.current.scrollTop += e.deltaY;
+              }
+            }}
+          >
             {tracks.map((track) => (
               <div
                 key={track.id}
@@ -248,6 +258,12 @@ export default function Timeline() {
         {/* Scrollable Tracks Area */}
         <div
           ref={timelineContainerRef}
+          onScroll={(e) => {
+            // Sinkronkan vertical scroll posisi layer header kiri dengan timeline canvas
+            if (trackHeadersRef.current) {
+              trackHeadersRef.current.scrollTop = e.currentTarget.scrollTop;
+            }
+          }}
           className="flex-1 overflow-x-auto overflow-y-auto relative bg-[#0c0d10]"
           onClick={(e) => {
             if (e.target === e.currentTarget) {

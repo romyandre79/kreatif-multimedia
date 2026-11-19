@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="60%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#312e81" />
+    </linearGradient>
+    <linearGradient id="ground" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#022c22" />
+    </linearGradient>
+    <radialGradient id="moon" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="80%" stop-color="#fde047" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </radialGradient>
+  </defs>
+  <!-- Background Langit Malam -->
+  <rect width="1920" height="1080" fill="url(#sky)" />
+  
+  <!-- Bulan Purnama -->
+  <circle cx="1500" cy="240" r="100" fill="url(#moon)" opacity="0.9" />
+
+  <!-- Pegunungan Siluet -->
+  <polygon points="0,800 350,550 750,850" fill="#1e1b4b" opacity="0.7" />
+  <polygon points="500,850 950,480 1450,850" fill="#172554" opacity="0.6" />
+  <polygon points="1200,850 1600,520 1920,780 1920,850" fill="#1e1b4b" opacity="0.8" />
+
+  <!-- Tanah / Hutan Siluet -->
+  <rect y="780" width="1920" height="300" fill="url(#ground)" />
+  
+  <!-- Pohon-pohon Siluet -->
+  <g fill="#022c22">
+    <polygon points="100,780 140,580 180,780" />
+    <polygon points="250,790 300,540 350,790" />
+    <polygon points="1700,780 1750,520 1800,780" />
+    <polygon points="1820,800 1860,600 1900,800" />
+  </g>
+
+  <!-- Title Watermark Demo -->
+  <text x="120" y="160" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="44" font-weight="bold">
+    Hutan Kerajaan Mystica
+  </text>
+  <text x="120" y="210" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="24">
+    Scene 1: Pertemuan Awal Sang Kesatria
+  </text>
+</svg>

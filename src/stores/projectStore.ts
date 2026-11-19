@@ -187,20 +187,22 @@ function captureSnapshot(state: {
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   meta: {
-    title: "Proyek Baru",
+    title: "Petualangan Ksatria Mystica",
     resolution: { width: 1920, height: 1080 },
     aspect_ratio: "16:9",
     fps: 30,
-    duration: 60,
+    duration: 15,
   },
 
   characters: [
     {
       id: "char-1",
-      name: "Bima",
-      description: "Prajurit tangguh",
-      avatar: "",
-      assets: [],
+      name: "Bima Arya",
+      description: "Pendekar muda tangguh berambut perak dan berjubah merah dari Kerajaan Mystica.",
+      avatar: "/demo/hero_avatar.svg",
+      assets: [
+        "/demo/hero_avatar.svg"
+      ],
       voice: {
         engine: "piper_local",
         voice_id: "id_ID-bima-medium",
@@ -213,14 +215,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   episodes: [
     {
       id: "ep-1",
-      title: "Episode 1: Perjalanan Dimulai",
+      title: "Episode 1: Perjalanan di Hutan Larangan",
       scenes: [
         {
           scene_id: "sc-1",
           character_id: "char-1",
-          script: "Kita harus bersiap sebelum badai tiba!",
+          script: "Bulan purnama telah terbit sempurna. Kita harus segera tiba di kuil sebelum gerbang tertutup!",
           audio_url: "",
-          duration: 4.5,
+          duration: 6.0,
         },
       ],
     },
@@ -231,12 +233,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       {
         id: "track-video-1",
         type: "video",
-        name: "Video 1",
+        name: "Background Hutan",
         clips: [
           {
-            id: "clip-demo-video",
+            id: "clip-demo-bg",
             trackId: "track-video-1",
-            source: "assets/intro_scene.mp4",
+            source: "/demo/forest_bg.svg",
             start: 0,
             end: 12,
             source_start: 0,
@@ -251,23 +253,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       {
         id: "track-char-1",
         type: "image",
-        name: "Karakter Overlay",
+        name: "Karakter Bima",
         clips: [
           {
             id: "clip-demo-char",
             trackId: "track-char-1",
-            source: "assets/bima_hero.png",
-            start: 2,
-            end: 8.5,
+            characterId: "char-1",
+            source: "/demo/hero_avatar.svg",
+            start: 1.0,
+            end: 9.0,
             source_start: null,
             source_end: null,
-            chroma_key: {
-              enabled: true,
-              color: "#00FF00",
-              similarity: 0.15,
-              smoothness: 0.05,
-            },
-            transform: { scale: 0.85, x: 50, y: 20, rotation: 0 },
+            transform: { scale: 0.75, x: -180, y: 60, rotation: 0 },
             transition_in: { type: "fade_in", duration: 0.5 },
             transition_out: { type: "fade_out", duration: 0.5 },
           },
@@ -276,16 +273,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       {
         id: "track-audio-1",
         type: "audio",
-        name: "Voiceover (TTS)",
+        name: "Voice Bima (TTS)",
         clips: [
           {
             id: "clip-demo-audio",
             trackId: "track-audio-1",
-            source: "cache/audio/dialog_bima.mp3",
-            start: 2.2,
-            end: 6.7,
+            characterId: "char-1",
+            source: "",
+            start: 1.2,
+            end: 7.2,
             source_start: 0,
-            source_end: 4.5,
+            source_end: 6.0,
             volume: 1.0,
             fade_in: 0.1,
             fade_out: 0.2,
@@ -297,22 +295,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       {
         id: "track-sub-1",
         type: "subtitle",
-        name: "Subtitle",
+        name: "Subtitle Naskah",
         clips: [
           {
             id: "clip-demo-sub",
             trackId: "track-sub-1",
-            text: "Kita harus bersiap sebelum badai tiba!",
-            start: 2.2,
-            end: 6.7,
+            characterId: "char-1",
+            text: "Bulan purnama telah terbit. Kita harus tiba sebelum gerbang tertutup!",
+            start: 1.2,
+            end: 7.2,
             source_start: null,
             source_end: null,
             transition_in: null,
             transition_out: null,
             style: {
-              font_size: 28,
+              font_size: 26,
               color: "#FFFFFF",
-              background_color: "rgba(0,0,0,0.6)",
+              background_color: "rgba(0,0,0,0.8)",
             },
           },
         ],

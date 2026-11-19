@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" width="800" height="1200">
+  <defs>
+    <!-- Filter Drop Shadow Halus -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="15" stdDeviation="15" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <linearGradient id="armor" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="cloak" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <!-- Jubah Merah -->
+    <path d="M260 400 L180 1100 L620 1100 L540 400 Z" fill="url(#cloak)" />
+
+    <!-- Badan & Armor Baja Futuristik -->
+    <path d="M300 420 L500 420 L480 850 L320 850 Z" fill="url(#armor)" stroke="#e0f2fe" stroke-width="4" />
+
+    <!-- Sabuk & Lambang Energi -->
+    <rect x="330" y="720" width="140" height="30" rx="6" fill="#facc15" />
+    <circle cx="400" cy="540" r="35" fill="#facc15" stroke="#ffffff" stroke-width="6" />
+
+    <!-- Tangan & Sarung Tangan -->
+    <rect x="230" y="450" width="60" height="320" rx="25" fill="#0369a1" />
+    <rect x="510" y="450" width="60" height="320" rx="25" fill="#0369a1" />
+
+    <!-- Leher -->
+    <rect x="365" y="340" width="70" height="70" fill="#fbcfe8" />
+
+    <!-- Kepala / Wajah Karakter Anime Heroik -->
+    <circle cx="400" cy="270" r="100" fill="#fde68a" />
+    
+    <!-- Rambut Kesatria Perak -->
+    <path d="M280 260 Q400 120 520 260 Q480 140 400 130 Q320 140 280 260 Z" fill="#e2e8f0" stroke="#94a3b8" stroke-width="4" />
+    <path d="M290 250 L310 330 L340 270 L370 330 L400 270 L430 330 L460 270 L490 330 L510 250 Z" fill="#f1f5f9" />
+
+    <!-- Mata Heroik Bersinar -->
+    <ellipse cx="360" cy="270" rx="15" ry="10" fill="#0284c7" />
+    <ellipse cx="440" cy="270" rx="15" ry="10" fill="#0284c7" />
+    <circle cx="363" cy="268" r="4" fill="#ffffff" />
+    <circle cx="443" cy="268" r="4" fill="#ffffff" />
+
+    <!-- Senyum Percaya Diri -->
+    <path d="M380 320 Q400 335 420 320" stroke="#b45309" stroke-width="5" fill="none" stroke-linecap="round" />
+
+    <!-- Pedang Cahaya di Tangan -->
+    <rect x="535" y="200" width="12" height="650" rx="6" fill="#38bdf8" opacity="0.9" stroke="#ffffff" stroke-width="3" />
+    <rect x="525" y="750" width="32" height="20" rx="4" fill="#f59e0b" />
+  </g>
+</svg>

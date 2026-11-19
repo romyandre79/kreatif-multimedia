@@ -42,6 +42,7 @@ export interface Transition {
 export interface Clip {
   id: string;
   trackId: string;
+  characterId?: string; // ID Karakter pemilik klip ini (untuk cascading delete)
   source?: string;
   text?: string;
   start: number;
@@ -392,9 +393,46 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
 
   deleteCharacter: (charId) =>
-    set((state) => ({
-      characters: state.characters.filter((c) => c.id !== charId),
-    })),
+    set((state) => {
+      // Cari data karakter yang akan dihapus
+      const targetChar = state.characters.find((c) => c.id === charId);
+      const charAssets = targetChar ? [targetChar.avatar, ...targetChar.assets].filter(Boolean) : [];
+
+      // 1. Filter tracks di Timeline: Hapus klip yang berhubungan dengan karakter ini
+      // (Berdasarkan characterId, aset gambar karakter, atau suara TTS karakter)
+      const updatedTracks = state.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.filter((clip) => {
+          // Jika klip punya explicit characterId
+          if (clip.characterId === charId) return false;
+
+          // Jika klip gambar menggunakan salah satu aset/avatar karakter ini
+          if (track.type === "image" && clip.source && charAssets.includes(clip.source)) {
+            return false;
+          }
+
+          return true;
+        }),
+      }));
+
+      // 2. Filter naskah episode: Bersihkan relasi character_id di scenes
+      const updatedEpisodes = state.episodes.map((ep) => ({
+        ...ep,
+        scenes: ep.scenes.map((sc) =>
+          sc.character_id === charId ? { ...sc, character_id: "" } : sc
+        ),
+      }));
+
+      return {
+        characters: state.characters.filter((c) => c.id !== charId),
+        timeline: {
+          ...state.timeline,
+          tracks: updatedTracks,
+        },
+        episodes: updatedEpisodes,
+        selectedClipId: null,
+      };
+    }),
 
   addCharacterAsset: (charId, assetUrl) =>
     set((state) => ({
@@ -577,6 +615,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     // 1. Masukkan Subtitle
     if (subTrack) {
       get().addClipToTrack(subTrack.id, {
+        characterId: character?.id,
         text: `[${character?.name || "Karakter"}]: ${scene.script}`,
         start: startTime,
         end: endTime,
@@ -586,6 +625,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     // 2. Masukkan Audio
     if (audioTrack && scene.audio_url) {
       get().addClipToTrack(audioTrack.id, {
+        characterId: character?.id,
         source: scene.audio_url,
         start: startTime,
         end: endTime,
@@ -596,6 +636,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     // 3. Masukkan Avatar Karakter jika ada
     if (charTrack && character?.avatar) {
       get().addClipToTrack(charTrack.id, {
+        characterId: character?.id,
         source: character.avatar,
         start: startTime,
         end: endTime,

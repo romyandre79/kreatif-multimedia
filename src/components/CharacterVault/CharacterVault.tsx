@@ -57,6 +57,7 @@ export default function CharacterVault() {
     }
     if (charTrack) {
       addClipToTrack(charTrack.id, {
+        characterId: activeChar?.id,
         source: assetUrl,
         crop: { x: 0, y: 0, width: 1920, height: 1080 },
         transform: { scale: 0.8, x: 0, y: 0, rotation: 0 },

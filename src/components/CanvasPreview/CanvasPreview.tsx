@@ -163,18 +163,20 @@ export default function CanvasPreview() {
         // Jika sedang play dan subtitle ini belum dibacakan suaranya di sesi play saat ini
         if (isPlaying && !spokenSubtitleRef.current.has(clip.id)) {
           spokenSubtitleRef.current.add(clip.id);
-          // Cek apakah ada klip audio bersamaan di timeline untuk dialog ini
+          // Cek apakah ada klip audio bersamaan di timeline untuk dialog ini yang sumber audionya valid dan dapat diputar
           const hasLinkedAudioClip = tracks.some(
             (t) =>
               t.type === "audio" &&
-              t.clips.some(
-                (c) =>
-                  Math.abs(c.start - clip.start) < 0.2 &&
-                  Boolean(c.source)
-              )
+              t.clips.some((c) => {
+                if (Math.abs(c.start - clip.start) < 0.25 && c.source) {
+                  // Jika klip audio mengarah ke dummy file yang tidak ada, jangan anggap playable audio
+                  return !c.source.startsWith("cache/audio/") && !c.source.startsWith("mock");
+                }
+                return false;
+              })
           );
 
-          // Hanya jalankan speech synthesis jika TIDAK ADA klip audio audio file di timeline
+          // Jalankan speech synthesis jika tidak ada klip audio playable di timeline
           if (!hasLinkedAudioClip) {
             const cleanSpeechText = clip.text.replace(/^\[.*?\]:\s*/, "");
             playSpokenSpeech(cleanSpeechText, "id-ID", 1.0);

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { generateElevenLabsSpeech } from "../services/elevenlabs";
-import { generateSynthesizedVoiceWav, speakWithWebSpeech } from "../services/localTts";
+import { generateSynthesizedVoiceWav } from "../services/localTts";
+import { generateNaturalSpeechAudio } from "../services/naturalTts";
 import { generateEpicBgmWav, generateHeroVoiceWav } from "../services/demoAudio";
 
 // --- Types ---
@@ -585,35 +586,48 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
     }
 
-    // 2. PIPER / LOKAL TTS NYATA (DENGAN NATIVE AUDIO PCM GENERATOR)
+    // 2. PIPER / LOKAL TTS NYATA (DENGAN NATIVE AUDIO & NATURAL SPEECH)
     try {
-      // Mainkan suara via Web Speech bawaan OS
-      speakWithWebSpeech(scene.script, "id-ID", character?.voice.speed || 1.0);
+      // Coba generate natural speech audio URL terlebih dahulu
+      let generatedAudioUrl = "";
+      let generatedDuration = 3.0;
 
-      // Generate file WAV riil di memory
-      const { audioUrl, duration } = await generateSynthesizedVoiceWav(
-        scene.script,
-        character?.voice.speed || 1.0
-      );
+      try {
+        const naturalRes = await generateNaturalSpeechAudio(scene.script, "id");
+        if (naturalRes.audioUrl) {
+          generatedAudioUrl = naturalRes.audioUrl;
+          generatedDuration = naturalRes.duration;
+        }
+      } catch (e) {
+        console.warn("Natural speech online fallback, trying synthesized wav:", e);
+      }
+
+      // Jika belum ada URL, gunakan synthesized WAV buffer lokal
+      if (!generatedAudioUrl) {
+        const wavRes = await generateSynthesizedVoiceWav(
+          scene.script,
+          character?.voice.speed || 1.0
+        );
+        generatedAudioUrl = wavRes.audioUrl;
+        generatedDuration = wavRes.duration;
+      }
 
       get().updateScene(episodeId, sceneId, {
-        audio_url: audioUrl,
-        duration,
+        audio_url: generatedAudioUrl,
+        duration: generatedDuration,
       });
 
-      return audioUrl;
+      return generatedAudioUrl;
     } catch (err: any) {
       console.warn("Lokal TTS fallback:", err);
-      const wordCount = scene.script.trim().split(/\s+/).length;
-      const fallbackDuration = Math.max(2.0, (wordCount / 130) * 60);
-      const mockAudioUrl = `cache/audio/${scene.scene_id}_piper.wav`;
-
+      // Fallback synthesizer WAV murni (100% playable via Blob)
+      const wavRes = await generateSynthesizedVoiceWav(scene.script, 1.0);
       get().updateScene(episodeId, sceneId, {
-        audio_url: mockAudioUrl,
-        duration: parseFloat(fallbackDuration.toFixed(1)),
+        audio_url: wavRes.audioUrl,
+        duration: wavRes.duration,
       });
 
-      return mockAudioUrl;
+      return wavRes.audioUrl;
     }
   },
 

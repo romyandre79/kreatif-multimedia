@@ -293,6 +293,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         ],
       },
       {
+        id: "track-audio-bgm",
+        type: "audio",
+        name: "Musik Latar (MP3 / BGM)",
+        clips: [],
+      },
+      {
         id: "track-sub-1",
         type: "subtitle",
         name: "Subtitle Naskah",

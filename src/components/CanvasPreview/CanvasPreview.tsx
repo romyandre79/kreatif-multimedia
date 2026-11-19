@@ -5,7 +5,7 @@ export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTimeRef = useRef<number>(performance.now());
-  const mediaCacheRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map());
+  const mediaCacheRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement | HTMLAudioElement>>(new Map());
 
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -15,7 +15,8 @@ export default function CanvasPreview() {
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const aspectRatio = useProjectStore((s) => s.meta.aspect_ratio);
 
-  const getMediaElement = useCallback((source: string, type: "image" | "video") => {
+  // Helper untuk mendapatkan / me-load elemen Image, Video, atau Audio
+  const getMediaElement = useCallback((source: string, type: "image" | "video" | "audio") => {
     let el = mediaCacheRef.current.get(source);
     if (!el) {
       if (type === "image") {
@@ -32,6 +33,12 @@ export default function CanvasPreview() {
         vid.preload = "auto";
         mediaCacheRef.current.set(source, vid);
         el = vid;
+      } else if (type === "audio") {
+        const aud = document.createElement("audio");
+        aud.src = source;
+        aud.preload = "auto";
+        mediaCacheRef.current.set(source, aud);
+        el = aud;
       }
     }
     return el;
@@ -54,6 +61,35 @@ export default function CanvasPreview() {
       for (const clip of track.clips) {
         if (currentTime >= clip.start && currentTime <= clip.end) {
           activeClips.push({ clip, track });
+        }
+      }
+    }
+
+    // 1. Sinkronisasi Pemutaran Audio Track (MP3 / WAV / BGM)
+    for (const track of tracks) {
+      if (track.type === "audio") {
+        for (const clip of track.clips) {
+          if (clip.source) {
+            const audio = getMediaElement(clip.source, "audio") as HTMLAudioElement;
+            if (audio) {
+              const isCurrentlyActive = currentTime >= clip.start && currentTime <= clip.end;
+
+              if (isCurrentlyActive && isPlaying) {
+                const targetTime = currentTime - clip.start + (clip.source_start || 0);
+                if (Math.abs(audio.currentTime - targetTime) > 0.25) {
+                  audio.currentTime = Math.max(0, targetTime);
+                }
+                audio.volume = clip.volume ?? 1.0;
+                if (audio.paused) {
+                  audio.play().catch(() => {});
+                }
+              } else {
+                if (!audio.paused) {
+                  audio.pause();
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -85,7 +121,7 @@ export default function CanvasPreview() {
       return;
     }
 
-    // Render layers
+    // 2. Render visual layers (Video & Image)
     for (const { clip, track } of activeClips) {
       if ((track.type === "video" || track.type === "image") && clip.source) {
         const media = getMediaElement(clip.source, track.type);
@@ -115,7 +151,7 @@ export default function CanvasPreview() {
       }
     }
 
-    // Subtitle Rendering
+    // 3. Subtitle Rendering
     for (const { clip, track } of activeClips) {
       if (track.type === "subtitle" && clip.text) {
         ctx.save();

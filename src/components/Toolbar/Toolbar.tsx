@@ -9,6 +9,7 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOpenGeminiFlow }: ToolbarProps) {
+  const resetNewProject = useProjectStore((s) => s.resetNewProject);
   const setProjectTitle = useProjectStore((s) => s.setProjectTitle);
   const saveProjectToJson = useProjectStore((s) => s.saveProjectToJson);
   const loadProjectFromJson = useProjectStore((s) => s.loadProjectFromJson);
@@ -142,6 +143,25 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
 
       {/* Center Tools Group */}
       <div className="flex items-center bg-[#171920] border border-[#262933] rounded-lg p-0.5 gap-0.5">
+        {/* Tombol Proyek Baru */}
+        <button
+          onClick={() => {
+            if (window.confirm("Buat proyek baru? Semua perubahan yang belum disimpan akan di-reset (bisa di-Undo via Ctrl+Z).")) {
+              resetNewProject();
+              showNotification("Proyek Baru Dibuat");
+            }
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-[#1a2e26] rounded-md transition-colors"
+          title="Buat Proyek Baru"
+        >
+          <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span className="font-medium text-[11px]">Proyek Baru</span>
+        </button>
+
+        <div className="w-px h-3.5 bg-[#2a2e3b] mx-0.5" />
+
         <button
           onClick={() => importFileInputRef.current?.click()}
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#232631] rounded-md transition-colors"

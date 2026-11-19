@@ -116,6 +116,7 @@ interface ProjectStore {
   zoomLevel: number; // pixels per second
 
   // History & File I/O Actions
+  resetNewProject: () => void;
   setProjectTitle: (title: string) => void;
   undo: () => void;
   redo: () => void;
@@ -365,6 +366,80 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   currentTime: 0,
   selectedClipId: "clip-demo-video",
   zoomLevel: 30, // 30px per detik
+
+  resetNewProject: () => {
+    // Simpan snapshot untuk undo jika pengguna tidak sengaja reset
+    undoStack.push(captureSnapshot(get()));
+    set({
+      meta: {
+        title: "Proyek Baru",
+        resolution: { width: 1920, height: 1080 },
+        aspect_ratio: "16:9",
+        fps: 30,
+        duration: 30,
+      },
+      characters: [
+        {
+          id: genId("char"),
+          name: "Karakter Utama",
+          description: "Deskripsi karakter...",
+          avatar: "",
+          assets: [],
+          voice: {
+            engine: "inherit",
+            voice_id: "21m00Tcm4TlvDq8ikWAM",
+            pitch: 1.0,
+            speed: 1.0,
+          },
+        },
+      ],
+      episodes: [
+        {
+          id: genId("ep"),
+          title: "Episode 1",
+          scenes: [
+            {
+              scene_id: genId("sc"),
+              character_id: "",
+              script: "Tulis naskah dialog pertama di sini...",
+              audio_url: "",
+              duration: 3.5,
+            },
+          ],
+        },
+      ],
+      timeline: {
+        tracks: [
+          {
+            id: genId("track-video"),
+            type: "video",
+            name: "Video 1",
+            clips: [],
+          },
+          {
+            id: genId("track-image"),
+            type: "image",
+            name: "Gambar 1",
+            clips: [],
+          },
+          {
+            id: genId("track-audio"),
+            type: "audio",
+            name: "Audio 1",
+            clips: [],
+          },
+          {
+            id: genId("track-sub"),
+            type: "subtitle",
+            name: "Subtitle 1",
+            clips: [],
+          },
+        ],
+      },
+      currentTime: 0,
+      selectedClipId: null,
+    });
+  },
 
   setProjectTitle: (title) =>
     set((state) => ({

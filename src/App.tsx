@@ -25,11 +25,11 @@ function App() {
       />
 
       {/* Main Studio Work Area */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Panel — Character & Story Studio */}
-        <aside className="w-80 flex flex-col border-r border-[#1d1f27] bg-[#121419]">
+        <aside className="w-72 shrink-0 flex flex-col border-r border-[#1d1f27] bg-[#121419] overflow-hidden">
           {/* Segmented Tab Switcher */}
-          <div className="p-2 border-b border-[#1d1f27] bg-[#101216]">
+          <div className="p-2 border-b border-[#1d1f27] bg-[#101216] shrink-0">
             <div className="flex bg-[#181b22] p-0.5 rounded-lg border border-[#242733]">
               <button
                 onClick={() => setActivePanel("characters")}
@@ -63,18 +63,18 @@ function App() {
         </aside>
 
         {/* Center Canvas Preview Viewport */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#090a0d]">
+        <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#090a0d] overflow-hidden">
           <CanvasPreview />
         </main>
 
         {/* Right Inspector Sidebar */}
-        <aside className="w-80 border-l border-[#1d1f27] bg-[#121419] overflow-y-auto">
+        <aside className="w-72 shrink-0 border-l border-[#1d1f27] bg-[#121419] overflow-y-auto">
           <Inspector />
         </aside>
       </div>
 
       {/* Bottom Timeline Work Area */}
-      <div className="h-64 border-t border-[#1d1f27] bg-[#111317]">
+      <div className="h-60 shrink-0 border-t border-[#1d1f27] bg-[#111317] overflow-hidden">
         <Timeline />
       </div>
 

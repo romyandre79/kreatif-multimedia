@@ -259,14 +259,20 @@ export default function CanvasPreview() {
       </div>
 
       {/* Canvas Viewport */}
-      <div className="flex-1 flex items-center justify-center p-4 min-h-0 relative">
-        <div className="relative shadow-2xl rounded-md overflow-hidden border border-[#21242d] bg-[#000000]">
+      <div className="flex-1 flex items-center justify-center p-3 min-h-0 min-w-0 relative overflow-hidden">
+        <div className="relative shadow-2xl rounded-md overflow-hidden border border-[#21242d] bg-[#000000] max-h-full max-w-full flex items-center justify-center">
           <canvas
             ref={canvasRef}
             width={1280}
             height={720}
-            className="max-w-full max-h-full block object-contain"
-            style={{ aspectRatio: aspectRatio.replace(":", " / ") }}
+            className="block object-contain"
+            style={{
+              maxHeight: "calc(100vh - 24rem)",
+              maxWidth: "100%",
+              width: "auto",
+              height: "auto",
+              aspectRatio: aspectRatio.replace(":", " / "),
+            }}
           />
         </div>
       </div>

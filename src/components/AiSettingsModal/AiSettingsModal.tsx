@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
-import { DEFAULT_ELEVENLABS_VOICES, fetchElevenLabsVoices, ElevenLabsVoice } from "../../services/elevenlabs";
+import {
+  DEFAULT_ELEVENLABS_VOICES,
+  fetchElevenLabsVoices,
+  ElevenLabsVoice,
+  DEFAULT_ELEVENLABS_MODELS,
+  fetchElevenLabsModels,
+  ElevenLabsModel,
+} from "../../services/elevenlabs";
 
 interface AiSettingsModalProps {
   onClose: () => void;
@@ -16,13 +23,21 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
   const [subSettings, setSubSettings] = useState(aiSettings.autoSubtitle);
   const [savedNotification, setSavedNotification] = useState(false);
   const [elevenLabsVoiceList, setElevenLabsVoiceList] = useState<ElevenLabsVoice[]>(DEFAULT_ELEVENLABS_VOICES);
+  const [elevenLabsModelList, setElevenLabsModelList] = useState<ElevenLabsModel[]>(DEFAULT_ELEVENLABS_MODELS);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+  const [voiceSearchQuery, setVoiceSearchQuery] = useState("");
 
   useEffect(() => {
     if (ttsSettings.apiKey && ttsSettings.provider === "elevenlabs") {
       setIsLoadingVoices(true);
-      fetchElevenLabsVoices(ttsSettings.apiKey)
-        .then((voices) => setElevenLabsVoiceList(voices))
+      Promise.all([
+        fetchElevenLabsVoices(ttsSettings.apiKey),
+        fetchElevenLabsModels(ttsSettings.apiKey),
+      ])
+        .then(([voices, models]) => {
+          setElevenLabsVoiceList(voices);
+          setElevenLabsModelList(models);
+        })
         .finally(() => setIsLoadingVoices(false));
     }
   }, [ttsSettings.apiKey, ttsSettings.provider]);
@@ -167,36 +182,104 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
                   </div>
 
                   {ttsSettings.provider === "elevenlabs" && (
-                    <div className="pt-2 border-t border-gray-700/60 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-gray-300 font-medium text-[11px] flex items-center gap-1.5">
-                          <span>🎙️</span> Pilihan Model Karakter Voice (ElevenLabs)
+                    <div className="pt-2 border-t border-gray-700/60 space-y-3">
+                      {/* Pilihan Model Engine TTS ElevenLabs */}
+                      <div>
+                        <label className="text-gray-300 font-medium text-[11px] block mb-1">
+                          🧠 Model AI Engine (Multilingual / Speed)
                         </label>
-                        {isLoadingVoices && (
-                          <span className="text-[10px] text-cyan-400 animate-pulse">
-                            Memuat daftar voice...
-                          </span>
-                        )}
+                        <select
+                          value={ttsSettings.elevenLabsModelId || "eleven_multilingual_v2"}
+                          onChange={(e) =>
+                            setTtsSettings({
+                              ...ttsSettings,
+                              elevenLabsModelId: e.target.value,
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 bg-gray-900 border border-indigo-700/60 rounded text-cyan-300 text-[11px] focus:outline-none focus:border-cyan-400 font-medium"
+                        >
+                          {elevenLabsModelList.map((m) => (
+                            <option key={m.model_id} value={m.model_id}>
+                              ⚡ {m.name}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          Gunakan <strong>Multilingual v2</strong> untuk aksen & intonasi Bahasa Indonesia terbaik, atau <strong>Flash v2.5</strong> untuk respons super cepat.
+                        </p>
                       </div>
-                      <select
-                        value={ttsSettings.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM"}
-                        onChange={(e) =>
-                          setTtsSettings({
-                            ...ttsSettings,
-                            elevenLabsVoiceId: e.target.value,
-                          })
-                        }
-                        className="w-full px-2.5 py-1.5 bg-gray-900 border border-indigo-700/60 rounded text-indigo-300 text-[11px] focus:outline-none focus:border-cyan-400"
-                      >
-                        {elevenLabsVoiceList.map((v) => (
-                          <option key={v.voice_id} value={v.voice_id}>
-                            🎙️ {v.name} {v.category ? `(${v.category})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[10px] text-gray-400">
-                        Pilihan voice ini akan menjadi default jika karakter menggunakan ElevenLabs. Anda juga dapat memilih voice spesifik berbeda untuk setiap karakter di panel <strong>🎭 Karakter</strong>.
-                      </p>
+
+                      {/* Pilihan Karakter Voice */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-gray-300 font-medium text-[11px] flex items-center gap-1.5">
+                            <span>🎙️</span> Pilihan Suara Karakter ({elevenLabsVoiceList.length} Suara Tersedia)
+                          </label>
+                          {isLoadingVoices && (
+                            <span className="text-[10px] text-cyan-400 animate-pulse">
+                              Memuat suara dari API...
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Search Bar Suara */}
+                        <input
+                          type="text"
+                          placeholder="Cari suara (misal: Adam, Rachel, Bella)..."
+                          value={voiceSearchQuery}
+                          onChange={(e) => setVoiceSearchQuery(e.target.value)}
+                          className="w-full px-2.5 py-1 bg-gray-950 border border-gray-700 rounded text-gray-200 text-[10px] focus:outline-none focus:border-cyan-400 mb-1"
+                        />
+
+                        <select
+                          value={ttsSettings.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM"}
+                          onChange={(e) =>
+                            setTtsSettings({
+                              ...ttsSettings,
+                              elevenLabsVoiceId: e.target.value,
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 bg-gray-900 border border-indigo-700/60 rounded text-indigo-300 text-[11px] focus:outline-none focus:border-cyan-400"
+                        >
+                          {elevenLabsVoiceList
+                            .filter(
+                              (v) =>
+                                !voiceSearchQuery.trim() ||
+                                v.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()) ||
+                                (v.category && v.category.toLowerCase().includes(voiceSearchQuery.toLowerCase()))
+                            )
+                            .map((v) => (
+                              <option key={v.voice_id} value={v.voice_id}>
+                                🎙️ {v.name} {v.category ? `[${v.category}]` : ""}
+                              </option>
+                            ))}
+                        </select>
+
+                        <div className="flex items-center justify-between text-[10px] text-gray-400 pt-0.5">
+                          <span>
+                            💡 Mendukung suara library resmi, custom clone, dan community voices.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (ttsSettings.apiKey) {
+                                setIsLoadingVoices(true);
+                                Promise.all([
+                                  fetchElevenLabsVoices(ttsSettings.apiKey),
+                                  fetchElevenLabsModels(ttsSettings.apiKey),
+                                ]).then(([voices, models]) => {
+                                  setElevenLabsVoiceList(voices);
+                                  setElevenLabsModelList(models);
+                                  setIsLoadingVoices(false);
+                                });
+                              }
+                            }}
+                            className="text-cyan-400 hover:underline flex items-center gap-1"
+                          >
+                            🔄 Refresh Suara
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

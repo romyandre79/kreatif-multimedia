@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 import { DEFAULT_ELEVENLABS_VOICES, fetchElevenLabsVoices, ElevenLabsVoice } from "../../services/elevenlabs";
 import GeminiGeneratorModal from "../GeminiFlow/GeminiGeneratorModal";
+import { optimizeImageToDataUrl, fileToDataUrl } from "../../services/persistentMedia";
 
 export default function CharacterVault() {
   const characters = useProjectStore((s) => s.characters);
@@ -17,6 +18,7 @@ export default function CharacterVault() {
     characters[0]?.id || null
   );
   const [elevenLabsVoices, setElevenLabsVoices] = useState<ElevenLabsVoice[]>(DEFAULT_ELEVENLABS_VOICES);
+  const [voiceSearchQuery, setVoiceSearchQuery] = useState("");
   const [showGeminiModal, setShowGeminiModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -30,35 +32,64 @@ export default function CharacterVault() {
 
   const activeChar = characters.find((c) => c.id === selectedCharId) || null;
 
-  // Handle upload avatar / foto profil
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle upload avatar / foto profil secara persisten (Base64 Data URL)
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!activeChar || !e.target.files?.[0]) return;
     const file = e.target.files[0];
-    const url = URL.createObjectURL(file);
-    updateCharacter(activeChar.id, { avatar: url });
-    // Masukkan juga ke galeri aset jika belum ada
-    if (!activeChar.assets.includes(url)) {
-      addCharacterAsset(activeChar.id, url);
+    try {
+      // Optimasi gambar dan jadikan data URL permanen agar tidak rusak saat refresh
+      const persistentUrl = await optimizeImageToDataUrl(file);
+      updateCharacter(activeChar.id, { avatar: persistentUrl });
+      // Masukkan juga ke galeri aset jika belum ada
+      if (!activeChar.assets.includes(persistentUrl)) {
+        addCharacterAsset(activeChar.id, persistentUrl);
+      }
+    } catch (err) {
+      console.warn("Gagal membaca foto avatar:", err);
     }
   };
 
-  // Handle upload variasi gambar pose / ekspresi
-  const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle upload variasi gambar/video pose secara persisten
+  const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!activeChar || !e.target.files) return;
-    Array.from(e.target.files).forEach((file) => {
-      const url = URL.createObjectURL(file);
-      addCharacterAsset(activeChar.id, url);
-    });
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      try {
+        let persistentUrl = "";
+        if (file.type.startsWith("image/")) {
+          persistentUrl = await optimizeImageToDataUrl(file);
+        } else {
+          // File video/audio
+          persistentUrl = await fileToDataUrl(file);
+        }
+        addCharacterAsset(activeChar.id, persistentUrl);
+      } catch (err) {
+        console.warn("Gagal membaca aset pose:", err);
+      }
+    }
   };
 
-  // Tambahkan aset karakter ke Timeline track "image" secara instan
+  // Helper untuk deteksi apakah sumber pose adalah video
+  const isVideoAsset = (url: string) => {
+    return (
+      url.startsWith("data:video/") ||
+      url.includes(".mp4") ||
+      url.includes(".webm") ||
+      url.includes(".mov") ||
+      url.includes(".mkv")
+    );
+  };
+
+  // Tambahkan aset karakter ke Timeline track "video" atau "image" secara instan
   const insertToTimeline = (assetUrl: string) => {
-    let charTrack = tracks.find((t) => t.type === "image");
-    if (!charTrack) {
-      charTrack = tracks[0];
+    const isVideo = isVideoAsset(assetUrl);
+    // Cari track yang sesuai (video untuk file video/motion pose, image untuk gambar statis)
+    let targetTrack = tracks.find((t) => t.type === (isVideo ? "video" : "image"));
+    if (!targetTrack) {
+      targetTrack = tracks.find((t) => t.type === "video" || t.type === "image") || tracks[0];
     }
-    if (charTrack) {
-      addClipToTrack(charTrack.id, {
+    if (targetTrack) {
+      addClipToTrack(targetTrack.id, {
         characterId: activeChar?.id,
         source: assetUrl,
         crop: { x: 0, y: 0, width: 1920, height: 1080 },
@@ -78,7 +109,6 @@ export default function CharacterVault() {
       {/* Header & Add Button */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-gray-200">🎭 Karakter Vault</h3>
           <p className="text-[10px] text-gray-400">{characters.length} Karakter Tersedia</p>
         </div>
         <button
@@ -105,11 +135,10 @@ export default function CharacterVault() {
               onClick={() => {
                 setSelectedCharId(char.id);
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition-all ${
-                isSelected
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition-all ${isSelected
                   ? "bg-indigo-950/70 border-indigo-500 text-indigo-200"
                   : "bg-gray-800/80 border-gray-700 text-gray-400 hover:text-gray-200"
-              }`}
+                }`}
             >
               <div className="w-5 h-5 rounded-full overflow-hidden bg-gray-700 shrink-0 flex items-center justify-center">
                 {char.avatar ? (
@@ -255,27 +284,57 @@ export default function CharacterVault() {
               {/* Pilihan Suara Spesifik (Voice ID) jika ElevenLabs atau inherit setting global ElevenLabs */}
               {(activeChar.voice.engine === "elevenlabs" ||
                 (activeChar.voice.engine === "inherit" && aiSettings.tts.provider === "elevenlabs")) && (
-                <div>
-                  <label className="text-[10px] text-gray-400 block mb-0.5">
-                    Pilihan Suara ElevenLabs
-                  </label>
-                  <select
-                    value={activeChar.voice.voice_id || aiSettings.tts.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM"}
-                    onChange={(e) =>
-                      updateCharacter(activeChar.id, {
-                        voice: { ...activeChar.voice, voice_id: e.target.value },
-                      })
-                    }
-                    className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-indigo-300 text-[11px]"
-                  >
-                    {elevenLabsVoices.map((v) => (
-                      <option key={v.voice_id} value={v.voice_id}>
-                        🎙️ {v.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="text-[10px] text-gray-400 block">
+                        Pilihan Suara ElevenLabs ({elevenLabsVoices.length} suara)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (aiSettings.tts.apiKey) {
+                            fetchElevenLabsVoices(aiSettings.tts.apiKey).then(setElevenLabsVoices);
+                          }
+                        }}
+                        className="text-[9px] text-cyan-400 hover:underline"
+                      >
+                        🔄 Refresh
+                      </button>
+                    </div>
+
+                    {/* Input Pencarian Suara Karakter */}
+                    <input
+                      type="text"
+                      placeholder="🔍 Cari suara (misal: Indonesia, Ricky, Adam)..."
+                      value={voiceSearchQuery}
+                      onChange={(e) => setVoiceSearchQuery(e.target.value)}
+                      className="w-full px-2 py-1 bg-gray-950 border border-gray-700 focus:border-indigo-500 rounded text-gray-200 text-[10px] outline-none"
+                    />
+
+                    <select
+                      value={activeChar.voice.voice_id || aiSettings.tts.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM"}
+                      onChange={(e) =>
+                        updateCharacter(activeChar.id, {
+                          voice: { ...activeChar.voice, voice_id: e.target.value },
+                        })
+                      }
+                      className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-indigo-300 text-[11px]"
+                    >
+                      {elevenLabsVoices
+                        .filter(
+                          (v) =>
+                            !voiceSearchQuery.trim() ||
+                            v.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()) ||
+                            (v.category && v.category.toLowerCase().includes(voiceSearchQuery.toLowerCase()))
+                        )
+                        .map((v) => (
+                          <option key={v.voice_id} value={v.voice_id}>
+                            🎙️ {v.name} {v.category ? `[${v.category}]` : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
             </div>
           </div>
 
@@ -308,7 +367,7 @@ export default function CharacterVault() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/*"
+                accept="image/*,video/*"
                 onChange={handleAssetUpload}
                 className="hidden"
               />
@@ -316,52 +375,79 @@ export default function CharacterVault() {
 
             {activeChar.assets.length === 0 ? (
               <div className="border border-dashed border-gray-800 rounded-lg p-5 text-center text-gray-500">
-                <p className="text-xl mb-1">🖼️</p>
-                <p>Belum ada gambar pose.</p>
+                <p className="text-xl mb-1">🎬</p>
+                <p>Belum ada media pose.</p>
                 <p className="text-[10px] mt-0.5 text-gray-600">
-                  Upload file PNG transparan / green-screen untuk karakter ini.
+                  Upload file Image (PNG/JPG) atau Video (MP4/WebM) green-screen untuk karakter ini.
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
-                {activeChar.assets.map((asset, index) => (
-                  <div
-                    key={index}
-                    className="group relative aspect-square rounded-lg bg-gray-900 border border-gray-800 hover:border-indigo-500 overflow-hidden cursor-pointer"
-                  >
-                    <img
-                      src={asset}
-                      alt={`Pose ${index + 1}`}
-                      className="w-full h-full object-cover"
+                {activeChar.assets.map((asset, index) => {
+                  const isVideo = isVideoAsset(asset);
+                  return (
+                    <div
+                      key={index}
+                      className="group relative aspect-square rounded-lg bg-gray-900 border border-gray-800 hover:border-indigo-500 overflow-hidden cursor-pointer"
                       onClick={() => insertToTimeline(asset)}
-                      title="Klik untuk masukkan ke Timeline video"
-                    />
+                      title={`Klik untuk masukkan pose ${isVideo ? "Video" : "Gambar"} ke Timeline`}
+                    >
+                      {isVideo ? (
+                        <div className="w-full h-full relative bg-black flex items-center justify-center">
+                          <video
+                            src={asset}
+                            muted
+                            loop
+                            playsInline
+                            className="w-full h-full object-cover pointer-events-none"
+                            onMouseEnter={(e) => (e.target as HTMLVideoElement).play().catch(() => { })}
+                            onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
+                          />
+                          <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/70 text-[9px] font-mono text-cyan-300 border border-cyan-500/30 flex items-center gap-0.5">
+                            🎬 Video
+                          </span>
+                        </div>
+                      ) : (
+                        <img
+                          src={asset}
+                          alt={`Pose ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
 
-                    {/* Quick Action Overlay */}
-                    <div className="absolute inset-x-0 bottom-0 p-1 bg-black/80 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateCharacter(activeChar.id, { avatar: asset });
-                        }}
-                        className="text-[9px] text-indigo-300 hover:text-white"
-                        title="Jadikan Avatar Utama"
-                      >
-                        ⭐
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeCharacterAsset(activeChar.id, index);
-                        }}
-                        className="text-[9px] text-red-400 hover:text-red-200"
-                        title="Hapus Aset Ini"
-                      >
-                        ✕
-                      </button>
+                      {/* Quick Action Overlay */}
+                      <div className="absolute inset-x-0 bottom-0 p-1 bg-black/80 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!isVideo && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateCharacter(activeChar.id, { avatar: asset });
+                            }}
+                            className="text-[9px] text-indigo-300 hover:text-white"
+                            title="Jadikan Avatar Utama"
+                          >
+                            ⭐
+                          </button>
+                        )}
+                        {isVideo && (
+                          <span className="text-[9px] text-gray-400 font-mono">
+                            Motion
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeCharacterAsset(activeChar.id, index);
+                          }}
+                          className="text-[9px] text-red-400 hover:text-red-200"
+                          title="Hapus Aset Ini"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { generateElevenLabsSpeech } from "../services/elevenlabs";
 import { generateSynthesizedVoiceWav } from "../services/localTts";
 import { generateNaturalSpeechAudio } from "../services/naturalTts";
+import { optimizeImageToDataUrl, fileToDataUrl } from "../services/persistentMedia";
 
 // --- Types ---
 
@@ -23,10 +24,12 @@ export interface Character {
 
 export interface Scene {
   scene_id: string;
-  character_id: string;
+  character_id: string; // ID Karakter, "image" (Gambar), "video" (Video), atau "" (Narasi)
   script: string;
   audio_url: string;
   duration: number;
+  media_url?: string;
+  media_type?: "image" | "video";
 }
 
 export interface Episode {
@@ -71,6 +74,9 @@ export interface Track {
   type: "video" | "image" | "audio" | "subtitle";
   name: string;
   clips: Clip[];
+  locked?: boolean;
+  muted?: boolean;
+  visible?: boolean;
 }
 
 export interface AiProviderConfig {
@@ -79,6 +85,7 @@ export interface AiProviderConfig {
     localModelPath: string;
     apiKey: string;
     elevenLabsVoiceId?: string;
+    elevenLabsModelId?: string;
   };
   imageGen: {
     provider: "gemini_flow" | "comfy_local" | "fal_ai" | "openai_dalle" | "midjourney";
@@ -94,6 +101,7 @@ export interface AiProviderConfig {
 
 export interface ProjectMeta {
   title: string;
+  description?: string;
   resolution: { width: number; height: number };
   aspect_ratio: string;
   fps: number;
@@ -104,19 +112,37 @@ export interface TimelineState {
   tracks: Track[];
 }
 
+export interface AutoSaveConfig {
+  enabled: boolean;
+  intervalMinutes: number; // Interval auto-save dalam menit (1, 2, 5, 10, dll)
+  lastSavedAt: string | null;
+}
+
 interface ProjectStore {
   meta: ProjectMeta;
   characters: Character[];
   episodes: Episode[];
   timeline: TimelineState;
   aiSettings: AiProviderConfig;
+  autoSaveConfig: AutoSaveConfig;
   currentTime: number;
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
+  togglePlay: () => void;
   selectedClipId: string | null;
   zoomLevel: number; // pixels per second
 
   // History & File I/O Actions
-  resetNewProject: () => void;
+  resetNewProject: (options?: {
+    title?: string;
+    description?: string;
+    aspect_ratio?: string;
+    resolution?: { width: number; height: number };
+    fps?: number;
+  }) => void;
   setProjectTitle: (title: string) => void;
+  updateAutoSaveConfig: (config: Partial<AutoSaveConfig>) => void;
+  triggerAutoSaveNow: () => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -140,11 +166,14 @@ interface ProjectStore {
   addSceneToEpisode: (episodeId: string, sceneData?: Partial<Scene>) => string;
   updateScene: (episodeId: string, sceneId: string, updates: Partial<Scene>) => void;
   deleteScene: (episodeId: string, sceneId: string) => void;
+  reorderScenes: (episodeId: string, sourceIndex: number, destIndex: number) => void;
   generateSceneAudio: (episodeId: string, sceneId: string) => Promise<string>;
-  insertSceneToTimeline: (episodeId: string, sceneId: string) => void;
-  insertEpisodeToTimeline: (episodeId: string) => void;
+  insertSceneToTimeline: (episodeId: string, sceneId: string, audioOnly?: boolean) => void;
+  insertEpisodeToTimeline: (episodeId: string, audioOnly?: boolean) => void;
   addTrack: (type: Track["type"]) => void;
+  updateTrack: (trackId: string, updates: Partial<Track>) => void;
   removeTrack: (trackId: string) => void;
+  reorderTracks: (sourceIndex: number, destIndex: number) => void;
 
   // Clip Timeline Actions
   addClipToTrack: (trackId: string, clipData: Partial<Clip>) => void;
@@ -194,6 +223,7 @@ export function createEmptyProjectData() {
   return {
     meta: {
       title: "Proyek Baru",
+      description: "",
       resolution: { width: 1920, height: 1080 },
       aspect_ratio: "16:9",
       fps: 30,
@@ -261,6 +291,19 @@ export function createEmptyProjectData() {
 }
 
 const LOCAL_STORAGE_KEY = "kreatif_studio_autosave_v1";
+const AI_SETTINGS_STORAGE_KEY = "kreatif_studio_ai_settings_v1";
+
+function getSavedAiSettings(): Partial<AiProviderConfig> | undefined {
+  try {
+    const saved = localStorage.getItem(AI_SETTINGS_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn("Gagal load AI settings dari localStorage:", e);
+  }
+  return undefined;
+}
 
 // Coba muat proyek yang tersimpan di browser / desktop, atau mulai proyek baru jika belum pernah ada
 function getInitialProjectData() {
@@ -286,39 +329,64 @@ function getInitialProjectData() {
 
 const initialData = getInitialProjectData();
 
+const savedAiCfg = getSavedAiSettings();
+
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   meta: initialData.meta,
   characters: initialData.characters,
   episodes: initialData.episodes,
   timeline: initialData.timeline,
 
-  aiSettings: (initialData as any).aiSettings || {
+  aiSettings: {
     tts: {
-      provider: "piper_local",
+      provider: "elevenlabs",
       localModelPath: "models/piper/id_ID-medium.onnx",
       apiKey: "",
       elevenLabsVoiceId: "21m00Tcm4TlvDq8ikWAM",
+      elevenLabsModelId: "eleven_multilingual_v2",
+      ...((initialData as any).aiSettings?.tts || {}),
+      ...(savedAiCfg?.tts || {}),
     },
     imageGen: {
       provider: "gemini_flow",
       endpoint: "http://127.0.0.1:8188",
       apiKey: "",
+      ...((initialData as any).aiSettings?.imageGen || {}),
+      ...(savedAiCfg?.imageGen || {}),
     },
     autoSubtitle: {
       provider: "whisper_local",
       modelSize: "base",
       apiKey: "",
+      ...((initialData as any).aiSettings?.autoSubtitle || {}),
+      ...(savedAiCfg?.autoSubtitle || {}),
     },
   },
 
+  autoSaveConfig: (initialData as any).autoSaveConfig || {
+    enabled: true,
+    intervalMinutes: 1, // Default auto-save setiap 1 menit
+    lastSavedAt: null,
+  },
+
   currentTime: 0,
+  isPlaying: false,
   selectedClipId: null,
   zoomLevel: 30, // 30px per detik
 
-  resetNewProject: () => {
+  resetNewProject: (options) => {
     // Simpan snapshot untuk undo jika pengguna tidak sengaja reset
     undoStack.push(captureSnapshot(get()));
     const freshData = createEmptyProjectData();
+
+    if (options) {
+      if (options.title) freshData.meta.title = options.title.trim();
+      if (options.description !== undefined) freshData.meta.description = options.description.trim();
+      if (options.aspect_ratio) freshData.meta.aspect_ratio = options.aspect_ratio;
+      if (options.resolution) freshData.meta.resolution = options.resolution;
+      if (options.fps) freshData.meta.fps = options.fps;
+    }
+
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     set({
       meta: freshData.meta,
@@ -330,6 +398,37 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     });
   },
 
+  updateAutoSaveConfig: (config) =>
+    set((state) => ({
+      autoSaveConfig: {
+        ...state.autoSaveConfig,
+        ...config,
+      },
+    })),
+
+  triggerAutoSaveNow: () => {
+    const state = get();
+    try {
+      const nowStr = new Date().toLocaleTimeString();
+      const projectData = {
+        version: "1.0.0",
+        saved_at: new Date().toISOString(),
+        meta: state.meta,
+        ai_settings: state.aiSettings,
+        auto_save_config: state.autoSaveConfig,
+        characters: state.characters,
+        episodes: state.episodes,
+        timeline: state.timeline,
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectData));
+      set((s) => ({
+        autoSaveConfig: { ...s.autoSaveConfig, lastSavedAt: nowStr },
+      }));
+    } catch (err) {
+      console.warn("Manual/Auto-save error:", err);
+    }
+  },
+
   setProjectTitle: (title) =>
     set((state) => ({
       meta: { ...state.meta, title: title.trim() || "Proyek Tanpa Judul" },
@@ -338,17 +437,43 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCurrentTime: (time) =>
     set({ currentTime: Math.max(0, Math.min(time, get().meta.duration)) }),
 
+  setIsPlaying: (playing) => set({ isPlaying: playing }),
+
+  togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
+
   setSelectedClipId: (clipId) => set({ selectedClipId: clipId }),
 
   setZoomLevel: (zoom) => set({ zoomLevel: Math.max(10, Math.min(zoom, 120)) }),
 
   updateAiSettings: (settings) =>
-    set((state) => ({
-      aiSettings: {
+    set((state) => {
+      const merged = {
         ...state.aiSettings,
         ...settings,
-      },
-    })),
+        tts: {
+          ...state.aiSettings.tts,
+          ...(settings.tts || {}),
+        },
+        imageGen: {
+          ...state.aiSettings.imageGen,
+          ...(settings.imageGen || {}),
+        },
+        autoSubtitle: {
+          ...state.aiSettings.autoSubtitle,
+          ...(settings.autoSubtitle || {}),
+        },
+      };
+
+      try {
+        localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+      } catch (e) {
+        console.warn("Gagal simpan AI settings ke localStorage:", e);
+      }
+
+      return {
+        aiSettings: merged,
+      };
+    }),
 
   addCharacter: (charData) => {
     const newId = genId("char");
@@ -489,6 +614,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           script: sceneData?.script || `Scene ${ep.scenes.length + 1}: dialog baru...`,
           audio_url: sceneData?.audio_url || "",
           duration: sceneData?.duration || 3.5,
+          media_url: sceneData?.media_url || "",
+          media_type: sceneData?.media_type,
         };
         return { ...ep, scenes: [...ep.scenes, newScene] };
       }),
@@ -520,6 +647,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }),
     })),
 
+  reorderScenes: (episodeId, sourceIndex, destIndex) =>
+    set((state) => ({
+      episodes: state.episodes.map((ep) => {
+        if (ep.id !== episodeId) return ep;
+        const newScenes = [...ep.scenes];
+        const [moved] = newScenes.splice(sourceIndex, 1);
+        newScenes.splice(destIndex, 0, moved);
+        return {
+          ...ep,
+          scenes: newScenes,
+        };
+      }),
+    })),
+
   generateSceneAudio: async (episodeId, sceneId) => {
     const state = get();
     const episode = state.episodes.find((e) => e.id === episodeId);
@@ -529,12 +670,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const character = state.characters.find((c) => c.id === scene.character_id);
 
     // Prioritas Voice Engine:
-    // Jika AI Setting memilih "elevenlabs", gunakan ElevenLabs secara global kecuali karakter secara eksplisit di-override
-    const globalTtsEngine = state.aiSettings.tts.provider || "piper_local";
-    const voiceEngine = character?.voice.engine === "inherit" || !character?.voice.engine
-      ? globalTtsEngine
-      : character.voice.engine || globalTtsEngine;
+    // Selalu ambil dari AI Engine setting (elevenlabs / piper_local / dll), kecuali karakter secara spesifik meng-override engine
+    const globalTtsEngine = state.aiSettings.tts.provider || "elevenlabs";
+    const voiceEngine = character && character.voice.engine && character.voice.engine !== "inherit"
+      ? character.voice.engine
+      : globalTtsEngine;
 
+    // Pilihan Voice ID:
+    // Jika narasi (tanpa karakter) atau karakter inherit, utamakan voice ID dari setting AI Engine
     const voiceId =
       (character?.voice.engine === "elevenlabs" && character.voice.voice_id) ||
       state.aiSettings.tts.elevenLabsVoiceId ||
@@ -545,7 +688,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (voiceEngine === "elevenlabs") {
       const apiKey = state.aiSettings.tts.apiKey;
       if (!apiKey) {
-        alert("API Key ElevenLabs belum diisi! Silakan buka menu 'AI Engine' di toolbar untuk memasukkan API Key.");
+        alert("API Key ElevenLabs belum diisi! Silakan klik menu 'AI Engine' di toolbar atas untuk memasukkan API Key.");
         throw new Error("ElevenLabs API Key belum diisi.");
       }
 
@@ -553,7 +696,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         const { audioUrl, duration } = await generateElevenLabsSpeech(
           apiKey,
           voiceId,
-          scene.script
+          scene.script,
+          0.5,
+          0.75,
+          state.aiSettings.tts.elevenLabsModelId || "eleven_multilingual_v2"
         );
 
         get().updateScene(episodeId, sceneId, {
@@ -613,33 +759,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
 
-  insertSceneToTimeline: (episodeId, sceneId) => {
+  insertSceneToTimeline: (episodeId, sceneId, audioOnly = true) => {
     const state = get();
     const episode = state.episodes.find((e) => e.id === episodeId);
     const scene = episode?.scenes.find((s) => s.scene_id === sceneId);
     if (!scene) return;
 
     const character = state.characters.find((c) => c.id === scene.character_id);
+    const speakerLabel = character?.name || "Narasi";
 
-    // Cari atau buat track
-    let subTrack = state.timeline.tracks.find((t) => t.type === "subtitle");
     let audioTrack = state.timeline.tracks.find((t) => t.type === "audio");
+    if (!audioTrack) {
+      get().addTrack("audio");
+      audioTrack = get().timeline.tracks.find((t) => t.type === "audio");
+    }
+    let subTrack = state.timeline.tracks.find((t) => t.type === "subtitle");
     let charTrack = state.timeline.tracks.find((t) => t.type === "image");
 
     const startTime = state.currentTime;
-    const endTime = startTime + scene.duration;
+    const endTime = startTime + (scene.duration || 3.5);
 
-    // 1. Masukkan Subtitle
-    if (subTrack) {
-      get().addClipToTrack(subTrack.id, {
-        characterId: character?.id,
-        text: `[${character?.name || "Karakter"}]: ${scene.script}`,
-        start: startTime,
-        end: endTime,
-      });
-    }
-
-    // 2. Masukkan Audio
+    // 1. Masukkan Audio TTS ke Track Audio jika ada
     if (audioTrack && scene.audio_url) {
       get().addClipToTrack(audioTrack.id, {
         characterId: character?.id,
@@ -650,33 +790,63 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       });
     }
 
-    // 3. Masukkan Avatar Karakter jika ada
-    if (charTrack && character?.avatar) {
-      get().addClipToTrack(charTrack.id, {
-        characterId: character?.id,
-        source: character.avatar,
-        start: startTime,
-        end: endTime,
-        chroma_key: {
-          enabled: true,
-          color: "#00FF00",
-          similarity: 0.15,
-          smoothness: 0.05,
-        },
-      });
+    // 2. Masukkan Media Visual (Image / Video) jika scene memiliki media visual
+    if (scene.media_url) {
+      const isVideo = scene.media_type === "video" || scene.media_url.startsWith("data:video/") || scene.media_url.includes(".mp4");
+      const targetType = isVideo ? "video" : "image";
+      let visualTrack = state.timeline.tracks.find((t) => t.type === targetType);
+      if (!visualTrack) {
+        get().addTrack(targetType);
+        visualTrack = get().timeline.tracks.find((t) => t.type === targetType);
+      }
+      if (visualTrack) {
+        get().addClipToTrack(visualTrack.id, {
+          characterId: character?.id,
+          source: scene.media_url,
+          start: startTime,
+          end: endTime,
+        });
+      }
     }
 
-    // Geser playhead ke akhir scene yang baru dimasukkan
-    get().setCurrentTime(endTime);
+    // Jika audioOnly = false, baru masukkan Subtitle dan Gambar Karakter Avatar
+    if (!audioOnly) {
+      if (subTrack) {
+        get().addClipToTrack(subTrack.id, {
+          characterId: character?.id,
+          text: `[${speakerLabel}]: ${scene.script}`,
+          start: startTime,
+          end: endTime,
+        });
+      }
+
+      if (charTrack && character?.avatar) {
+        get().addClipToTrack(charTrack.id, {
+          characterId: character?.id,
+          source: character.avatar,
+          start: startTime,
+          end: endTime,
+          chroma_key: {
+            enabled: true,
+            color: "#00FF00",
+            similarity: 0.15,
+            smoothness: 0.05,
+          },
+        });
+      }
+    }
+
+    // Kembalikan playhead ke titik awal klip yang baru dimasukkan agar pengguna bisa langsung mendengarkan dengan menekan Play
+    get().setCurrentTime(startTime);
   },
 
-  insertEpisodeToTimeline: (episodeId) => {
+  insertEpisodeToTimeline: (episodeId, audioOnly = true) => {
     const state = get();
     const episode = state.episodes.find((e) => e.id === episodeId);
     if (!episode || episode.scenes.length === 0) return;
 
     for (const scene of episode.scenes) {
-      get().insertSceneToTimeline(episodeId, scene.scene_id);
+      get().insertSceneToTimeline(episodeId, scene.scene_id, audioOnly);
     }
   },
 
@@ -699,11 +869,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               type,
               name: `${typeNames[type]} ${count + 1}`,
               clips: [],
+              visible: true,
+              locked: false,
+              muted: false,
             },
           ],
         },
       };
     }),
+
+  updateTrack: (trackId, updates) =>
+    set((state) => ({
+      timeline: {
+        ...state.timeline,
+        tracks: state.timeline.tracks.map((t) =>
+          t.id === trackId ? { ...t, ...updates } : t
+        ),
+      },
+    })),
 
   removeTrack: (trackId) =>
     set((state) => ({
@@ -712,6 +895,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         tracks: state.timeline.tracks.filter((t) => t.id !== trackId),
       },
     })),
+
+  reorderTracks: (sourceIndex, destIndex) =>
+    set((state) => {
+      const newTracks = [...state.timeline.tracks];
+      const [removed] = newTracks.splice(sourceIndex, 1);
+      newTracks.splice(destIndex, 0, removed);
+      return {
+        timeline: {
+          ...state.timeline,
+          tracks: newTracks,
+        },
+      };
+    }),
 
   addClipToTrack: (trackId, clipData) =>
     set((state) => {
@@ -933,12 +1129,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   // --- SAVE PROJECT TO JSON (DOWNLOAD FILE .kreatif.json) ---
   saveProjectToJson: () => {
+    // Pastikan input aktif yang belum di-blur tersinkron sebelum diekspor
+    if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+      document.activeElement.blur();
+    }
+
     const state = get();
+    // Sinkronkan juga ke local storage sebagai checkpoint
+    try {
+      get().triggerAutoSaveNow();
+    } catch {
+      // Abaikan jika storage error
+    }
+
     const projectData = {
       version: "1.0.0",
       saved_at: new Date().toISOString(),
       meta: state.meta,
       ai_settings: state.aiSettings,
+      auto_save_config: state.autoSaveConfig,
       characters: state.characters,
       episodes: state.episodes,
       timeline: state.timeline,
@@ -948,9 +1157,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const blob = new Blob([jsonStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safeTitle = state.meta.title.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const safeTitle = (state.meta.title || "proyek_kreatif").toLowerCase().replace(/[^a-z0-9]/g, "_");
     a.href = url;
-    a.download = `${safeTitle}.kreatif.json`;
+    a.download = `${safeTitle}_${timestamp}.kreatif.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -964,7 +1176,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     undoStack.push(captureSnapshot(get()));
     set({
       meta: jsonData.meta || get().meta,
-      aiSettings: jsonData.ai_settings || get().aiSettings,
+      aiSettings: jsonData.ai_settings || jsonData.aiSettings || get().aiSettings,
+      autoSaveConfig: jsonData.auto_save_config || jsonData.autoSaveConfig || get().autoSaveConfig,
       characters: jsonData.characters || [],
       episodes: jsonData.episodes || [],
       timeline: jsonData.timeline,
@@ -974,13 +1187,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   // --- IMPORT MEDIA FILE DIRECTLY TO TIMELINE ---
-  importMediaFile: (file) => {
+  importMediaFile: async (file) => {
     const state = get();
     undoStack.push(captureSnapshot(state));
     redoStack.length = 0; // Clear redo
 
-    const url = URL.createObjectURL(file);
     const fileType = file.type;
+    let persistentUrl = "";
+    try {
+      if (fileType.startsWith("image/")) {
+        persistentUrl = await optimizeImageToDataUrl(file);
+      } else {
+        persistentUrl = await fileToDataUrl(file);
+      }
+    } catch {
+      persistentUrl = URL.createObjectURL(file);
+    }
 
     let targetTrackType: Track["type"] = "video";
     if (fileType.startsWith("image/")) targetTrackType = "image";
@@ -1000,7 +1222,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const newClip: Clip = {
         id: genId("clip"),
         trackId: track.id,
-        source: url,
+        source: persistentUrl,
         start,
         end,
         source_start: 0,
@@ -1021,20 +1243,40 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 }));
 
-// Auto-save otomatis ke LocalStorage setiap ada perubahan state proyek
-useProjectStore.subscribe((state) => {
-  try {
-    const projectData = {
-      version: "1.0.0",
-      saved_at: new Date().toISOString(),
-      meta: state.meta,
-      ai_settings: state.aiSettings,
-      characters: state.characters,
-      episodes: state.episodes,
-      timeline: state.timeline,
-    };
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectData));
-  } catch (err) {
-    console.warn("Auto-save storage error:", err);
+// Auto-save timer interval dinamis tanpa perlu mendownload/membuat file baru
+let _autoSaveTimer: ReturnType<typeof setInterval> | null = null;
+
+function setupAutoSaveTimer(intervalMinutes: number, enabled: boolean) {
+  if (_autoSaveTimer) {
+    clearInterval(_autoSaveTimer);
+    _autoSaveTimer = null;
+  }
+
+  if (!enabled || intervalMinutes <= 0) return;
+
+  const intervalMs = Math.max(1, intervalMinutes) * 60 * 1000;
+  _autoSaveTimer = setInterval(() => {
+    useProjectStore.getState().triggerAutoSaveNow();
+  }, intervalMs);
+}
+
+// Inisialisasi timer awal
+setupAutoSaveTimer(
+  initialData && (initialData as any).autoSaveConfig?.intervalMinutes
+    ? (initialData as any).autoSaveConfig.intervalMinutes
+    : 1,
+  initialData && (initialData as any).autoSaveConfig?.enabled !== false
+);
+
+// Listener perubahan pengaturan auto-save
+useProjectStore.subscribe((state, prevState) => {
+  if (
+    state.autoSaveConfig.enabled !== prevState.autoSaveConfig.enabled ||
+    state.autoSaveConfig.intervalMinutes !== prevState.autoSaveConfig.intervalMinutes
+  ) {
+    setupAutoSaveTimer(
+      state.autoSaveConfig.intervalMinutes,
+      state.autoSaveConfig.enabled
+    );
   }
 });

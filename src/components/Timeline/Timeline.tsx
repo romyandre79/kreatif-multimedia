@@ -1,5 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { useProjectStore } from "../../stores/projectStore";
+import { useProjectStore, Clip } from "../../stores/projectStore";
+import InternalAudioEditorModal from "../InternalEditor/InternalAudioEditorModal";
+import InternalImageEditorModal from "../InternalEditor/InternalImageEditorModal";
+import InternalSubtitleEditorModal from "../InternalEditor/InternalSubtitleEditorModal";
 
 const TRACK_STYLES: Record<string, { bg: string; border: string; glow: string; text: string }> = {
   video: { bg: "bg-[#18314a]/90", border: "border-[#2b5d8f]", glow: "shadow-blue-500/20", text: "text-blue-300" },
@@ -21,15 +24,23 @@ export default function Timeline() {
   const duration = useProjectStore((s) => s.meta.duration);
   const zoomLevel = useProjectStore((s) => s.zoomLevel);
   const selectedClipId = useProjectStore((s) => s.selectedClipId);
+  const isPlaying = useProjectStore((s) => s.isPlaying);
+  const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
 
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const setSelectedClipId = useProjectStore((s) => s.setSelectedClipId);
   const setZoomLevel = useProjectStore((s) => s.setZoomLevel);
   const addTrack = useProjectStore((s) => s.addTrack);
+  const updateTrack = useProjectStore((s) => s.updateTrack);
+  const removeTrack = useProjectStore((s) => s.removeTrack);
+  const reorderTracks = useProjectStore((s) => s.reorderTracks);
   const updateClipPosition = useProjectStore((s) => s.updateClipPosition);
   const trimClip = useProjectStore((s) => s.trimClip);
   const splitClipAtTime = useProjectStore((s) => s.splitClipAtTime);
   const deleteSelectedClip = useProjectStore((s) => s.deleteSelectedClip);
+
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+  const [editingTrackName, setEditingTrackName] = useState<string>("");
 
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const trackHeadersRef = useRef<HTMLDivElement>(null);
@@ -41,6 +52,12 @@ export default function Timeline() {
     initialStart: number;
     initialEnd: number;
     targetTrackId?: string;
+  } | null>(null);
+
+  // State untuk modal Internal Editor saat klip di-double click
+  const [editingClipInfo, setEditingClipInfo] = useState<{
+    clip: Clip;
+    trackType: string;
   } | null>(null);
 
   const pixelsPerSecond = zoomLevel;
@@ -151,6 +168,35 @@ export default function Timeline() {
       {/* Timeline Quick Bar */}
       <div className="h-9 px-3 border-b border-[#1b1d24] bg-[#14161c] flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
+          {/* Play/Pause Button in Timeline Quick Bar */}
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition-all ${
+              isPlaying
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/30"
+            }`}
+            title="Play / Pause Timeline (Spasi)"
+          >
+            {isPlaying ? (
+              <>
+                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+                <span className="text-[11px]">Pause</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span className="text-[11px]">Play</span>
+              </>
+            )}
+          </button>
+
+          <div className="w-px h-3.5 bg-[#252834] mx-0.5" />
+
           {/* Split Button */}
           <button
             onClick={() => selectedClipId && splitClipAtTime(selectedClipId, currentTime)}
@@ -226,32 +272,146 @@ export default function Timeline() {
 
       {/* Timeline Main Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Left Track Headers */}
-        <div className="w-40 shrink-0 border-r border-[#1b1d24] bg-[#13151a] flex flex-col z-20">
-          <div className="h-6 border-b border-[#1b1d24] px-3 flex items-center text-[10px] text-gray-500 font-semibold tracking-wider uppercase shrink-0">
-            Layers
+        {/* Left Track Headers (Layer CRUD & Controls) */}
+        <div className="w-56 shrink-0 border-r border-[#1b1d24] bg-[#13151a] flex flex-col z-20">
+          <div className="h-6 border-b border-[#1b1d24] px-3 flex items-center justify-between text-[10px] text-gray-500 font-semibold tracking-wider uppercase shrink-0">
+            <span>Layers ({tracks.length})</span>
+            <span className="text-[9px] text-gray-600 font-normal">Reorder / Mute / Del</span>
           </div>
           <div
             ref={trackHeadersRef}
             className="flex-1 overflow-y-hidden"
             onWheel={(e) => {
-              // Jika user scroll mouse wheel saat cursor berada di kolom layer header, teruskan scroll ke tracks area
               if (timelineContainerRef.current) {
                 timelineContainerRef.current.scrollTop += e.deltaY;
               }
             }}
           >
-            {tracks.map((track) => (
-              <div
-                key={track.id}
-                className="h-12 border-b border-[#1c1e27] px-3 flex items-center justify-between text-xs bg-[#14161c]"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs">{TRACK_ICONS[track.type]}</span>
-                  <span className="truncate text-[11px] font-medium text-gray-300">{track.name}</span>
+            {tracks.map((track, index) => {
+              const isEditing = editingTrackId === track.id;
+              const isFirst = index === 0;
+              const isLast = index === tracks.length - 1;
+
+              return (
+                <div
+                  key={track.id}
+                  className={`h-12 border-b border-[#1c1e27] px-2.5 flex items-center justify-between text-xs transition-colors group ${
+                    track.visible === false ? "bg-[#111217] opacity-60" : "bg-[#14161c] hover:bg-[#181a22]"
+                  }`}
+                >
+                  {/* Left: Icon & Name (Editable) */}
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
+                    <span className="text-xs shrink-0 select-none" title={track.type}>
+                      {TRACK_ICONS[track.type]}
+                    </span>
+
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingTrackName}
+                        onChange={(e) => setEditingTrackName(e.target.value)}
+                        onBlur={() => {
+                          if (editingTrackName.trim()) {
+                            updateTrack(track.id, { name: editingTrackName.trim() });
+                          }
+                          setEditingTrackId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            if (editingTrackName.trim()) {
+                              updateTrack(track.id, { name: editingTrackName.trim() });
+                            }
+                            setEditingTrackId(null);
+                          } else if (e.key === "Escape") {
+                            setEditingTrackId(null);
+                          }
+                        }}
+                        className="bg-[#0b0c10] border border-cyan-500 rounded px-1.5 py-0.5 text-[11px] text-white w-full outline-none"
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={() => {
+                          setEditingTrackId(track.id);
+                          setEditingTrackName(track.name);
+                        }}
+                        className="truncate text-[11px] font-medium text-gray-300 hover:text-white cursor-pointer select-none"
+                        title="Klik 2x untuk ubah nama layer"
+                      >
+                        {track.name}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Right: Layer Controls (Up/Down, Mute/Visible, Delete) */}
+                  <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                    {/* Reorder Up */}
+                    <button
+                      onClick={() => !isFirst && reorderTracks(index, index - 1)}
+                      disabled={isFirst}
+                      className="p-1 rounded hover:bg-[#252834] text-gray-500 hover:text-gray-200 disabled:opacity-20 text-[10px]"
+                      title="Pindahkan Layer ke Atas"
+                    >
+                      ▲
+                    </button>
+
+                    {/* Reorder Down */}
+                    <button
+                      onClick={() => !isLast && reorderTracks(index, index + 1)}
+                      disabled={isLast}
+                      className="p-1 rounded hover:bg-[#252834] text-gray-500 hover:text-gray-200 disabled:opacity-20 text-[10px]"
+                      title="Pindahkan Layer ke Bawah"
+                    >
+                      ▼
+                    </button>
+
+                    {/* Visibility Toggle */}
+                    <button
+                      onClick={() => updateTrack(track.id, { visible: track.visible === false ? true : false })}
+                      className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${
+                        track.visible === false ? "text-red-400" : "text-gray-400 hover:text-white"
+                      }`}
+                      title={track.visible === false ? "Tampilkan Layer" : "Sembunyikan Layer"}
+                    >
+                      {track.visible === false ? "🙈" : "👁️"}
+                    </button>
+
+                    {/* Audio Mute Toggle (khusus layer audio) */}
+                    {track.type === "audio" && (
+                      <button
+                        onClick={() => updateTrack(track.id, { muted: !track.muted })}
+                        className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${
+                          track.muted ? "text-red-400" : "text-gray-400 hover:text-white"
+                        }`}
+                        title={track.muted ? "Unmute Layer Audio" : "Mute Layer Audio"}
+                      >
+                        {track.muted ? "🔇" : "🔊"}
+                      </button>
+                    )}
+
+                    {/* Delete Track (dengan konfirmasi jika ada klip) */}
+                    <button
+                      onClick={() => {
+                        if (track.clips.length > 0) {
+                          if (
+                            !window.confirm(
+                              `Hapus "${track.name}" beserta ${track.clips.length} klip di dalamnya?`
+                            )
+                          ) {
+                            return;
+                          }
+                        }
+                        removeTrack(track.id);
+                      }}
+                      className="p-1 rounded hover:bg-red-950/40 text-gray-500 hover:text-red-400 text-[11px] transition-colors"
+                      title="Hapus Layer Ini"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -324,6 +484,12 @@ export default function Timeline() {
                           e.stopPropagation();
                           setSelectedClipId(clip.id);
                         }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedClipId(clip.id);
+                          setEditingClipInfo({ clip, trackType: track.type });
+                        }}
+                        title={`Double-click untuk buka Editor Internal (${track.type})`}
                         onMouseDown={(e) => {
                           if ((e.target as HTMLElement).dataset.handle) return;
                           e.stopPropagation();
@@ -398,6 +564,28 @@ export default function Timeline() {
           </div>
         </div>
       </div>
+      {/* Modals Editor Internal Sesuai Tipe Klip */}
+      {editingClipInfo && editingClipInfo.trackType === "audio" && (
+        <InternalAudioEditorModal
+          clip={editingClipInfo.clip}
+          trackType={editingClipInfo.trackType}
+          onClose={() => setEditingClipInfo(null)}
+        />
+      )}
+      {editingClipInfo && (editingClipInfo.trackType === "image" || editingClipInfo.trackType === "video") && (
+        <InternalImageEditorModal
+          clip={editingClipInfo.clip}
+          trackType={editingClipInfo.trackType}
+          onClose={() => setEditingClipInfo(null)}
+        />
+      )}
+      {editingClipInfo && editingClipInfo.trackType === "subtitle" && (
+        <InternalSubtitleEditorModal
+          clip={editingClipInfo.clip}
+          trackType={editingClipInfo.trackType}
+          onClose={() => setEditingClipInfo(null)}
+        />
+      )}
     </div>
   );
 }

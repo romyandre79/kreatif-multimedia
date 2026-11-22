@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
+import NewProjectModal from "../NewProjectModal/NewProjectModal";
 
 interface ToolbarProps {
   projectTitle: string;
@@ -9,7 +10,6 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOpenGeminiFlow }: ToolbarProps) {
-  const resetNewProject = useProjectStore((s) => s.resetNewProject);
   const setProjectTitle = useProjectStore((s) => s.setProjectTitle);
   const saveProjectToJson = useProjectStore((s) => s.saveProjectToJson);
   const loadProjectFromJson = useProjectStore((s) => s.loadProjectFromJson);
@@ -18,8 +18,14 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
   const redo = useProjectStore((s) => s.redo);
   const canUndo = useProjectStore((s) => s.canUndo);
   const canRedo = useProjectStore((s) => s.canRedo);
+  const autoSaveConfig = useProjectStore((s) => s.autoSaveConfig);
+  const updateAutoSaveConfig = useProjectStore((s) => s.updateAutoSaveConfig);
+  const triggerAutoSaveNow = useProjectStore((s) => s.triggerAutoSaveNow);
 
   const [notification, setNotification] = useState<string | null>(null);
+  const [showAutoSaveMenu, setShowAutoSaveMenu] = useState(false);
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const autoSaveMenuRef = useRef<HTMLDivElement>(null);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const loadProjectInputRef = useRef<HTMLInputElement>(null);
@@ -28,6 +34,17 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
     setNotification(msg);
     setTimeout(() => setNotification(null), 2500);
   };
+
+  // Close auto-save dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (autoSaveMenuRef.current && !autoSaveMenuRef.current.contains(e.target as Node)) {
+        setShowAutoSaveMenu(false);
+      }
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -143,16 +160,11 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
 
       {/* Center Tools Group */}
       <div className="flex items-center bg-[#171920] border border-[#262933] rounded-lg p-0.5 gap-0.5">
-        {/* Tombol Proyek Baru */}
+        {/* Tombol Proyek Baru (Membuka Modal Setup) */}
         <button
-          onClick={() => {
-            if (window.confirm("Buat proyek baru? Semua perubahan yang belum disimpan akan di-reset (bisa di-Undo via Ctrl+Z).")) {
-              resetNewProject();
-              showNotification("Proyek Baru Dibuat");
-            }
-          }}
+          onClick={() => setShowNewProjectModal(true)}
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-[#1a2e26] rounded-md transition-colors"
-          title="Buat Proyek Baru"
+          title="Buat Proyek Baru (Format Video, Judul, Deskripsi)"
         >
           <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -173,19 +185,121 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <span className="font-medium text-[11px]">Import</span>
         </button>
 
+        {/* Tombol Simpan JSON Manual */}
         <button
           onClick={() => {
             saveProjectToJson();
-            showNotification("Proyek tersimpan");
+            showNotification("File proyek disimpan & diunduh (.json)");
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#232631] rounded-md transition-colors"
-          title="Simpan Proyek (Ctrl+S)"
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/80 hover:text-cyan-200 border border-cyan-800/60 rounded-md transition-colors shadow-sm"
+          title="Export / Unduh File Proyek ke .kreatif.json (Ctrl+S)"
         >
-          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
           </svg>
-          <span className="font-medium text-[11px]">Simpan</span>
+          <span className="font-semibold text-[11px]">Simpan (.json)</span>
         </button>
+
+        {/* Tombol & Menu Auto-Save Tanpa File Baru */}
+        <div className="relative" ref={autoSaveMenuRef}>
+          <button
+            onClick={() => setShowAutoSaveMenu(!showAutoSaveMenu)}
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-all ${
+              autoSaveConfig.enabled
+                ? "text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/40"
+                : "text-gray-400 hover:text-gray-200 hover:bg-[#232631]"
+            }`}
+            title="Pengaturan Auto-Save (Menyimpan otomatis ke storage lokal tanpa mendownload file baru)"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${autoSaveConfig.enabled ? "bg-emerald-400 animate-pulse" : "bg-gray-500"}`} />
+            <span className="font-medium text-[11px]">
+              Auto-Save {autoSaveConfig.enabled ? `(${autoSaveConfig.intervalMinutes}m)` : "Off"}
+            </span>
+            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Dropdown Menu Pengaturan Auto-Save */}
+          {showAutoSaveMenu && (
+            <div className="absolute left-0 mt-1.5 w-64 rounded-xl bg-[#14161f] border border-[#262a3a] shadow-2xl p-3 z-50 text-xs text-gray-200 animate-in fade-in zoom-in-95 duration-100">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#212433]">
+                <span className="font-semibold text-white flex items-center gap-1.5">
+                  <span>⏱️</span> Auto-Save Otomatis
+                </span>
+                <input
+                  type="checkbox"
+                  checked={autoSaveConfig.enabled}
+                  onChange={(e) => {
+                    updateAutoSaveConfig({ enabled: e.target.checked });
+                    showNotification(e.target.checked ? "Auto-Save Aktif" : "Auto-Save Dimatikan");
+                  }}
+                  className="rounded cursor-pointer accent-emerald-500 w-4 h-4"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] text-gray-400 block font-medium">
+                  Frekuensi Simpan Otomatis:
+                </label>
+                <div className="grid grid-cols-4 gap-1">
+                  {[1, 2, 5, 10].map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => {
+                        updateAutoSaveConfig({ intervalMinutes: mins, enabled: true });
+                        showNotification(`Auto-Save diatur tiap ${mins} menit`);
+                      }}
+                      className={`py-1 text-[11px] font-medium rounded-lg border text-center transition-all ${
+                        autoSaveConfig.intervalMinutes === mins && autoSaveConfig.enabled
+                          ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 font-semibold"
+                          : "bg-[#181b24] border-[#252938] text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {mins}m
+                    </button>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-[#212433] space-y-2">
+                  <div className="text-[9px] text-gray-400 flex items-center justify-between">
+                    <span>Status:</span>
+                    <span className="text-emerald-400 font-mono">
+                      {autoSaveConfig.lastSavedAt
+                        ? `Auto-Saved (${autoSaveConfig.lastSavedAt})`
+                        : "Belum tersimpan"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        triggerAutoSaveNow();
+                        showNotification("Tersimpan ke Storage Lokal");
+                        setShowAutoSaveMenu(false);
+                      }}
+                      className="flex-1 py-1 bg-[#1a1c26] hover:bg-[#252838] border border-[#2c3042] text-gray-300 rounded text-[10px] font-medium transition-colors"
+                      title="Simpan ke memori browser tanpa unduh file"
+                    >
+                      Simpan Storage
+                    </button>
+                    <button
+                      onClick={() => {
+                        saveProjectToJson();
+                        showNotification("File proyek disimpan & diunduh (.json)");
+                        setShowAutoSaveMenu(false);
+                      }}
+                      className="flex-1 py-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded text-[10px] font-semibold transition-colors"
+                      title="Unduh fisik file .kreatif.json sekarang"
+                    >
+                      Unduh JSON
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         <button
           onClick={() => loadProjectInputRef.current?.click()}
@@ -251,6 +365,13 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <span>Export</span>
         </button>
       </div>
+
+      {/* Modal Dialog Proyek Baru */}
+      <NewProjectModal
+        isOpen={showNewProjectModal}
+        onClose={() => setShowNewProjectModal(false)}
+        onCreated={() => showNotification("Proyek Baru Dibuat")}
+      />
     </header>
   );
 }

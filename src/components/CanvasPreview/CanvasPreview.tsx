@@ -12,33 +12,79 @@ export default function CanvasPreview() {
   const currentTime = useProjectStore((s) => s.currentTime);
   const duration = useProjectStore((s) => s.meta.duration);
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
-  const aspectRatio = useProjectStore((s) => s.meta.aspect_ratio);
+  const aspectRatio = useProjectStore((s) => s.meta.aspect_ratio || "16:9");
+  const resolution = useProjectStore((s) => s.meta.resolution || { width: 1920, height: 1080 });
 
-  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlaying = useProjectStore((s) => s.isPlaying);
+  const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
   const isPlayingRef = useRef(false);
+  isPlayingRef.current = isPlaying;
   const currentTimeRef = useRef(currentTime);
   currentTimeRef.current = currentTime;
   const spokenSubtitleRef = useRef<Set<string>>(new Set());
 
+  // Shortcut keyboard spasi untuk Play / Pause
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        const nextState = !isPlayingRef.current;
+        if (!nextState) {
+          if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        } else {
+          spokenSubtitleRef.current.clear();
+          lastTimeRef.current = performance.now();
+        }
+        setIsPlaying(nextState);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setIsPlaying]);
+  const [zoomScale, setZoomScale] = useState<number>(1); // 1 = 100% (Fit)
+  const [isEditingZoom, setIsEditingZoom] = useState(false);
+  const [zoomInputText, setZoomInputText] = useState("100");
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ startX: number; startY: number; initPanX: number; initPanY: number } | null>(null);
+
+  // Helper untuk memeriksa apakah URL atau base64 merupakan media video
+  const isVideoSource = (source: string) => {
+    return (
+      source.startsWith("data:video/") ||
+      source.includes(".mp4") ||
+      source.includes(".webm") ||
+      source.includes(".mov") ||
+      source.includes(".mkv")
+    );
+  };
+
   // Helper untuk mendapatkan / me-load elemen Image, Video, atau Audio
-  const getMediaElement = useCallback((source: string, type: "image" | "video" | "audio") => {
+  const getMediaElement = useCallback((source: string, declaredType: "image" | "video" | "audio") => {
+    // Deteksi tipe aktual: jika di track image tapi URL adalah video, gunakan video element
+    const actualType = declaredType === "audio" ? "audio" : isVideoSource(source) ? "video" : "image";
+
     let el = mediaCacheRef.current.get(source);
     if (!el) {
-      if (type === "image") {
+      if (actualType === "image") {
         const img = new Image();
         img.src = source;
         mediaCacheRef.current.set(source, img);
         el = img;
-      } else if (type === "video") {
+      } else if (actualType === "video") {
         const vid = document.createElement("video");
         vid.src = source;
         vid.crossOrigin = "anonymous";
         vid.muted = true;
         vid.playsInline = true;
         vid.preload = "auto";
+        vid.loop = true;
         mediaCacheRef.current.set(source, vid);
         el = vid;
-      } else if (type === "audio") {
+      } else if (actualType === "audio") {
         const aud = document.createElement("audio");
         aud.src = source;
         aud.preload = "auto";
@@ -63,6 +109,7 @@ export default function CanvasPreview() {
 
     const activeClips: { clip: Clip; track: Track }[] = [];
     for (const track of tracks) {
+      if (track.visible === false) continue; // Hormati flag layer hidden
       for (const clip of track.clips) {
         if (currentTime >= clip.start && currentTime <= clip.end) {
           activeClips.push({ clip, track });
@@ -78,6 +125,12 @@ export default function CanvasPreview() {
             const audio = getMediaElement(clip.source, "audio") as HTMLAudioElement;
             if (audio) {
               const isCurrentlyActive = currentTime >= clip.start && currentTime <= clip.end;
+
+              // Matikan audio jika track dimute atau disembunyikan
+              if (track.muted || track.visible === false) {
+                if (!audio.paused) audio.pause();
+                continue;
+              }
 
               if (isCurrentlyActive && isPlaying) {
                 const targetTime = currentTime - clip.start + (clip.source_start || 0);
@@ -311,13 +364,95 @@ export default function CanvasPreview() {
   return (
     <div ref={containerRef} className="flex flex-col h-full bg-[#0b0c0e] select-none">
       {/* Top Monitor Bar */}
-      <div className="h-8 border-b border-[#1b1d24] px-4 flex items-center justify-between text-[11px] text-gray-400 shrink-0">
+      <div className="h-8 border-b border-[#1b1d24] px-4 flex items-center justify-between text-[11px] text-gray-400 shrink-0 bg-[#0e1014]">
         <div className="flex items-center gap-3">
           <span className="font-semibold text-gray-200">Player Monitor</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#171920] border border-[#242731] text-cyan-400 font-mono">
             {aspectRatio}
           </span>
+          <span className="text-[10px] text-gray-500 font-mono">
+            {resolution.width}×{resolution.height}
+          </span>
         </div>
+
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-gray-500">Zoom:</span>
+          <button
+            onClick={() => setZoomScale((z) => Math.max(0.25, parseFloat((z - 0.25).toFixed(2))))}
+            className="w-5 h-5 flex items-center justify-center rounded bg-[#181a24] hover:bg-[#252936] text-gray-300 border border-[#272b38] text-xs font-bold"
+            title="Zoom Out (-)"
+          >
+            -
+          </button>
+
+          {/* Editable Zoom Percentage Input */}
+          {isEditingZoom ? (
+            <input
+              type="text"
+              autoFocus
+              value={zoomInputText}
+              onChange={(e) => setZoomInputText(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={() => {
+                const val = parseInt(zoomInputText, 10);
+                if (!isNaN(val) && val >= 10 && val <= 500) {
+                  setZoomScale(parseFloat((val / 100).toFixed(2)));
+                } else if (!isNaN(val) && val < 10) {
+                  setZoomScale(0.1);
+                } else if (!isNaN(val) && val > 500) {
+                  setZoomScale(5);
+                }
+                setIsEditingZoom(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = parseInt(zoomInputText, 10);
+                  if (!isNaN(val) && val >= 10 && val <= 500) {
+                    setZoomScale(parseFloat((val / 100).toFixed(2)));
+                  } else if (!isNaN(val) && val < 10) {
+                    setZoomScale(0.1);
+                  } else if (!isNaN(val) && val > 500) {
+                    setZoomScale(5);
+                  }
+                  setIsEditingZoom(false);
+                } else if (e.key === "Escape") {
+                  setIsEditingZoom(false);
+                }
+              }}
+              className="font-mono text-[10px] text-cyan-300 w-12 text-center bg-[#090b10] px-1 py-0.5 rounded border border-cyan-500 outline-none"
+            />
+          ) : (
+            <span
+              onClick={() => {
+                setZoomInputText(String(Math.round(zoomScale * 100)));
+                setIsEditingZoom(true);
+              }}
+              className="font-mono text-[10px] text-cyan-400 w-12 text-center bg-[#12141c] hover:bg-[#1a1d28] hover:border-cyan-500/60 cursor-pointer px-1 py-0.5 rounded border border-[#1f2330] transition-colors"
+              title="Klik untuk mengetik persentase zoom (10% - 500%)"
+            >
+              {Math.round(zoomScale * 100)}%
+            </span>
+          )}
+
+          <button
+            onClick={() => setZoomScale((z) => Math.min(5, parseFloat((z + 0.25).toFixed(2))))}
+            className="w-5 h-5 flex items-center justify-center rounded bg-[#181a24] hover:bg-[#252936] text-gray-300 border border-[#272b38] text-xs font-bold"
+            title="Zoom In (+)"
+          >
+            +
+          </button>
+          <button
+            onClick={() => {
+              setZoomScale(1);
+              setPanOffset({ x: 0, y: 0 });
+            }}
+            className="px-2 py-0.5 rounded bg-[#181a24] hover:bg-[#252936] text-[10px] text-gray-300 border border-[#272b38]"
+            title="Kembalikan ke Ukuran Normal (Fit 100%)"
+          >
+            Fit (100%)
+          </button>
+        </div>
+
         <div className="flex items-center gap-2 font-mono text-[11px]">
           <span className="text-cyan-400 font-bold">{formatTime(currentTime)}</span>
           <span className="text-gray-600">/</span>
@@ -325,21 +460,67 @@ export default function CanvasPreview() {
         </div>
       </div>
 
-      {/* Canvas Viewport */}
-      <div className="flex-1 flex items-center justify-center p-3 min-h-0 min-w-0 relative overflow-hidden">
-        <div className="relative shadow-2xl rounded-md overflow-hidden border border-[#21242d] bg-[#000000] max-h-full max-w-full flex items-center justify-center">
+      {/* Canvas Viewport (Mendukung Zoom & Drag Pan) */}
+      <div
+        className="flex-1 flex items-center justify-center p-4 min-h-0 min-w-0 relative overflow-hidden bg-[#07080a] cursor-default"
+        onWheel={(e) => {
+          // Zoom dengan mouse wheel ketika kursor berada di atas area canvas
+          if (e.ctrlKey || e.metaKey || e.altKey) {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.15 : -0.15;
+            setZoomScale((z) => Math.max(0.25, Math.min(4, parseFloat((z + delta).toFixed(2)))));
+          }
+        }}
+        onMouseDown={(e) => {
+          // Klik tengah atau tahan klik saat zoom > 1 untuk menggeser (Pan)
+          if (e.button === 1 || zoomScale > 1) {
+            setIsPanning(true);
+            panStartRef.current = {
+              startX: e.clientX,
+              startY: e.clientY,
+              initPanX: panOffset.x,
+              initPanY: panOffset.y,
+            };
+          }
+        }}
+        onMouseMove={(e) => {
+          if (isPanning && panStartRef.current) {
+            const dx = e.clientX - panStartRef.current.startX;
+            const dy = e.clientY - panStartRef.current.startY;
+            setPanOffset({
+              x: panStartRef.current.initPanX + dx,
+              y: panStartRef.current.initPanY + dy,
+            });
+          }
+        }}
+        onMouseUp={() => {
+          setIsPanning(false);
+          panStartRef.current = null;
+        }}
+        onMouseLeave={() => {
+          setIsPanning(false);
+          panStartRef.current = null;
+        }}
+      >
+        <div
+          className={`relative shadow-2xl rounded-md overflow-hidden border border-[#21242d] bg-[#000000] flex items-center justify-center transition-transform ${
+            isPanning ? "cursor-grabbing" : zoomScale > 1 ? "cursor-grab" : ""
+          }`}
+          style={{
+            aspectRatio: aspectRatio.replace(":", " / "),
+            maxHeight: "100%",
+            maxWidth: "100%",
+            height: aspectRatio === "9:16" || aspectRatio === "4:5" ? "100%" : "auto",
+            width: aspectRatio === "9:16" || aspectRatio === "4:5" ? "auto" : "100%",
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomScale})`,
+            transformOrigin: "center center",
+          }}
+        >
           <canvas
             ref={canvasRef}
-            width={1280}
-            height={720}
-            className="block object-contain"
-            style={{
-              maxHeight: "calc(100vh - 24rem)",
-              maxWidth: "100%",
-              width: "auto",
-              height: "auto",
-              aspectRatio: aspectRatio.replace(":", " / "),
-            }}
+            width={resolution.width || (aspectRatio === "9:16" ? 1080 : 1920)}
+            height={resolution.height || (aspectRatio === "9:16" ? 1920 : 1080)}
+            className="w-full h-full object-contain block pointer-events-none"
           />
         </div>
       </div>
@@ -360,7 +541,6 @@ export default function CanvasPreview() {
           <button
             onClick={() => {
               const nextState = !isPlaying;
-              isPlayingRef.current = nextState;
               if (!nextState) {
                 if ("speechSynthesis" in window) window.speechSynthesis.cancel();
               } else {

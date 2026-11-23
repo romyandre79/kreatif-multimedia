@@ -27,6 +27,17 @@ export default function Timeline() {
   const isPlaying = useProjectStore((s) => s.isPlaying);
   const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
 
+  const playheadRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe langsung ke projectStore untuk menggerakkan playhead via DOM tanpa re-render Timeline
+  useEffect(() => {
+    return useProjectStore.subscribe((state) => {
+      if (playheadRef.current) {
+        playheadRef.current.style.transform = `translateX(${state.currentTime * state.zoomLevel}px)`;
+      }
+    });
+  }, []);
+
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const setSelectedClipId = useProjectStore((s) => s.setSelectedClipId);
   const setZoomLevel = useProjectStore((s) => s.setZoomLevel);
@@ -41,6 +52,19 @@ export default function Timeline() {
 
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [editingTrackName, setEditingTrackName] = useState<string>("");
+  const [showAddLayerMenu, setShowAddLayerMenu] = useState(false);
+  const addLayerMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close add layer menu saat klik di luar
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addLayerMenuRef.current && !addLayerMenuRef.current.contains(e.target as Node)) {
+        setShowAddLayerMenu(false);
+      }
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const trackHeadersRef = useRef<HTMLDivElement>(null);
@@ -171,11 +195,10 @@ export default function Timeline() {
           {/* Play/Pause Button in Timeline Quick Bar */}
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition-all ${
-              isPlaying
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition-all ${isPlaying
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
                 : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/30"
-            }`}
+              }`}
             title="Play / Pause Timeline (Spasi)"
           >
             {isPlaying ? (
@@ -239,34 +262,7 @@ export default function Timeline() {
             />
           </div>
 
-          <div className="w-px h-3.5 bg-[#252834]" />
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => addTrack("video")}
-              className="text-[10px] px-2 py-0.5 rounded bg-[#162130] hover:bg-[#1f3148] text-blue-300 border border-[#21354f]"
-            >
-              + Video
-            </button>
-            <button
-              onClick={() => addTrack("image")}
-              className="text-[10px] px-2 py-0.5 rounded bg-[#132622] hover:bg-[#1a3832] text-emerald-300 border border-[#1b3d36]"
-            >
-              + Gambar
-            </button>
-            <button
-              onClick={() => addTrack("audio")}
-              className="text-[10px] px-2 py-0.5 rounded bg-[#231733] hover:bg-[#34224c] text-purple-300 border border-[#3b2359]"
-            >
-              + Audio
-            </button>
-            <button
-              onClick={() => addTrack("subtitle")}
-              className="text-[10px] px-2 py-0.5 rounded bg-[#291f11] hover:bg-[#3d2f19] text-amber-300 border border-[#48371c]"
-            >
-              + Subtitle
-            </button>
-          </div>
         </div>
       </div>
 
@@ -275,8 +271,66 @@ export default function Timeline() {
         {/* Left Track Headers (Layer CRUD & Controls) */}
         <div className="w-56 shrink-0 border-r border-[#1b1d24] bg-[#13151a] flex flex-col z-20">
           <div className="h-6 border-b border-[#1b1d24] px-3 flex items-center justify-between text-[10px] text-gray-500 font-semibold tracking-wider uppercase shrink-0">
-            <span>Layers ({tracks.length})</span>
-            <span className="text-[9px] text-gray-600 font-normal">Reorder / Mute / Del</span>
+            <span className="flex items-center gap-1.5">
+              <span>Layers ({tracks.length})</span>
+            </span>
+
+            {/* Tombol Tambah Layer Dropdown */}
+            <div className="relative" ref={addLayerMenuRef}>
+              <button
+                onClick={() => setShowAddLayerMenu(!showAddLayerMenu)}
+                className="px-1.5 py-0.5 rounded bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-500/40 text-[9px] font-bold flex items-center gap-1 transition-colors"
+                title="Tambah Layer Baru ke Timeline"
+              >
+                <span>➕</span>
+                <span>Layer</span>
+              </button>
+
+              {showAddLayerMenu && (
+                <div className="absolute right-0 top-6 z-50 w-36 bg-[#161821] border border-[#2b2f3d] rounded-lg shadow-2xl py-1 text-xs">
+                  <button
+                    onClick={() => {
+                      addTrack("video");
+                      setShowAddLayerMenu(false);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-blue-300 hover:bg-[#202534] flex items-center gap-2"
+                  >
+                    <span>🎬</span>
+                    <span>Layer Video</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      addTrack("image");
+                      setShowAddLayerMenu(false);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-emerald-300 hover:bg-[#202534] flex items-center gap-2"
+                  >
+                    <span>🖼️</span>
+                    <span>Layer Gambar</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      addTrack("audio");
+                      setShowAddLayerMenu(false);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-purple-300 hover:bg-[#202534] flex items-center gap-2"
+                  >
+                    <span>🎵</span>
+                    <span>Layer Audio</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      addTrack("subtitle");
+                      setShowAddLayerMenu(false);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-amber-300 hover:bg-[#202534] flex items-center gap-2"
+                  >
+                    <span>💬</span>
+                    <span>Layer Subtitle</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div
             ref={trackHeadersRef}
@@ -295,9 +349,8 @@ export default function Timeline() {
               return (
                 <div
                   key={track.id}
-                  className={`h-12 border-b border-[#1c1e27] px-2.5 flex items-center justify-between text-xs transition-colors group ${
-                    track.visible === false ? "bg-[#111217] opacity-60" : "bg-[#14161c] hover:bg-[#181a22]"
-                  }`}
+                  className={`h-12 border-b border-[#1c1e27] px-2.5 flex items-center justify-between text-xs transition-colors group ${track.visible === false ? "bg-[#111217] opacity-60" : "bg-[#14161c] hover:bg-[#181a22]"
+                    }`}
                 >
                   {/* Left: Icon & Name (Editable) */}
                   <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
@@ -368,9 +421,8 @@ export default function Timeline() {
                     {/* Visibility Toggle */}
                     <button
                       onClick={() => updateTrack(track.id, { visible: track.visible === false ? true : false })}
-                      className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${
-                        track.visible === false ? "text-red-400" : "text-gray-400 hover:text-white"
-                      }`}
+                      className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${track.visible === false ? "text-red-400" : "text-gray-400 hover:text-white"
+                        }`}
                       title={track.visible === false ? "Tampilkan Layer" : "Sembunyikan Layer"}
                     >
                       {track.visible === false ? "🙈" : "👁️"}
@@ -380,9 +432,8 @@ export default function Timeline() {
                     {track.type === "audio" && (
                       <button
                         onClick={() => updateTrack(track.id, { muted: !track.muted })}
-                        className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${
-                          track.muted ? "text-red-400" : "text-gray-400 hover:text-white"
-                        }`}
+                        className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${track.muted ? "text-red-400" : "text-gray-400 hover:text-white"
+                          }`}
                         title={track.muted ? "Unmute Layer Audio" : "Mute Layer Audio"}
                       >
                         {track.muted ? "🔇" : "🔊"}
@@ -455,10 +506,11 @@ export default function Timeline() {
               ))}
             </div>
 
-            {/* Cyan Playhead */}
+            {/* Cyan Playhead (Hardware accelerated transform) */}
             <div
-              className="absolute top-0 bottom-0 z-30 pointer-events-none"
-              style={{ left: currentTime * pixelsPerSecond }}
+              ref={playheadRef}
+              className="absolute top-0 bottom-0 left-0 z-30 pointer-events-none will-change-transform"
+              style={{ transform: `translateX(${currentTime * pixelsPerSecond}px)` }}
             >
               <div className="w-px h-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
               <div className="w-2.5 h-3 bg-cyan-400 -ml-[4.5px] -mt-6 rounded-b-sm" />
@@ -505,11 +557,10 @@ export default function Timeline() {
                         }}
                         className={`absolute top-1.5 h-9 rounded-md border text-xs cursor-grab active:cursor-grabbing
                           flex items-center overflow-hidden transition-shadow select-none
-                          ${style.bg} ${style.border} ${
-                          isSelected
+                          ${style.bg} ${style.border} ${isSelected
                             ? "ring-2 ring-cyan-400 border-cyan-400 shadow-lg " + style.glow
                             : "hover:border-white/50"
-                        }`}
+                          }`}
                         style={{ left, width }}
                       >
                         {/* Trim Handle Left */}
@@ -534,8 +585,13 @@ export default function Timeline() {
                           <p className={`font-semibold truncate text-[11px] ${style.text}`}>
                             {clip.source?.split("/").pop() || clip.text || "Untitled Clip"}
                           </p>
-                          <p className="text-[9px] text-gray-400 font-mono">
-                            {(clip.end - clip.start).toFixed(1)}s
+                          <p className="text-[9px] text-gray-400 font-mono flex items-center gap-1">
+                            <span>{(clip.end - clip.start).toFixed(1)}s</span>
+                            {clip.maxDuration && (
+                              <span className="text-[8px] text-cyan-400/80" title={`Durasi master: ${clip.maxDuration.toFixed(1)}s`}>
+                                (max {clip.maxDuration.toFixed(1)}s)
+                              </span>
+                            )}
                           </p>
                         </div>
 

@@ -57,7 +57,15 @@ export default function InternalImageEditorModal({
     onClose();
   };
 
-  const clipFileName = clip.source?.split("/").pop() || "Image File";
+  const isVideo =
+    trackType === "video" ||
+    clip.source?.startsWith("data:video/") ||
+    clip.source?.includes(".mp4") ||
+    clip.source?.includes(".webm") ||
+    clip.source?.includes(".mov") ||
+    clip.source?.includes(".mkv");
+
+  const clipFileName = clip.source?.split("/").pop() || (isVideo ? "Video File" : "Image File");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -66,11 +74,11 @@ export default function InternalImageEditorModal({
         <div className="px-5 py-3.5 border-b border-[#1c1f28] bg-[#161821] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-lg border border-emerald-500/20">
-              🖼️
+              {isVideo ? "🎬" : "🖼️"}
             </span>
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Internal Image & Visual Editor
+                Internal {isVideo ? "Video" : "Image"} & Visual Editor
                 <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   {trackType}
                 </span>
@@ -94,21 +102,38 @@ export default function InternalImageEditorModal({
           <div className="flex flex-col items-center justify-center bg-[#0c0d12] rounded-xl border border-[#1f222d] p-4 min-h-[260px] relative overflow-hidden">
             <div className="w-full h-full flex items-center justify-center overflow-hidden relative">
               {clip.source ? (
-                <img
-                  src={clip.source}
-                  alt="Preview"
-                  style={{
-                    transform: `translate(${posX}px, ${posY}px) rotate(${rotation}deg) scale(${scale})`,
-                    filter: `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px)`,
-                    maxWidth: "85%",
-                    maxHeight: "220px",
-                    objectFit: "contain",
-                    transition: "transform 0.05s ease-out",
-                  }}
-                  className="rounded shadow-xl"
-                />
+                isVideo ? (
+                  <video
+                    src={clip.source}
+                    controls
+                    playsInline
+                    style={{
+                      transform: `translate(${posX}px, ${posY}px) rotate(${rotation}deg) scale(${scale})`,
+                      filter: `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px)`,
+                      maxWidth: "85%",
+                      maxHeight: "220px",
+                      objectFit: "contain",
+                      transition: "transform 0.05s ease-out",
+                    }}
+                    className="rounded shadow-xl"
+                  />
+                ) : (
+                  <img
+                    src={clip.source}
+                    alt="Preview"
+                    style={{
+                      transform: `translate(${posX}px, ${posY}px) rotate(${rotation}deg) scale(${scale})`,
+                      filter: `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px)`,
+                      maxWidth: "85%",
+                      maxHeight: "220px",
+                      objectFit: "contain",
+                      transition: "transform 0.05s ease-out",
+                    }}
+                    className="rounded shadow-xl"
+                  />
+                )
               ) : (
-                <div className="text-gray-500 text-xs">Tidak ada sumber gambar</div>
+                <div className="text-gray-500 text-xs">Tidak ada sumber visual</div>
               )}
             </div>
             <div className="absolute bottom-2 right-2 text-[10px] font-mono bg-black/60 px-2 py-0.5 rounded text-gray-300">

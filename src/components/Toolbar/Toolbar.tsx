@@ -204,11 +204,10 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
         <div className="relative" ref={autoSaveMenuRef}>
           <button
             onClick={() => setShowAutoSaveMenu(!showAutoSaveMenu)}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-all ${
-              autoSaveConfig.enabled
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-all ${autoSaveConfig.enabled
                 ? "text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/40"
                 : "text-gray-400 hover:text-gray-200 hover:bg-[#232631]"
-            }`}
+              }`}
             title="Pengaturan Auto-Save (Menyimpan otomatis ke storage lokal tanpa mendownload file baru)"
           >
             <span className={`w-1.5 h-1.5 rounded-full ${autoSaveConfig.enabled ? "bg-emerald-400 animate-pulse" : "bg-gray-500"}`} />
@@ -250,11 +249,10 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
                         updateAutoSaveConfig({ intervalMinutes: mins, enabled: true });
                         showNotification(`Auto-Save diatur tiap ${mins} menit`);
                       }}
-                      className={`py-1 text-[11px] font-medium rounded-lg border text-center transition-all ${
-                        autoSaveConfig.intervalMinutes === mins && autoSaveConfig.enabled
+                      className={`py-1 text-[11px] font-medium rounded-lg border text-center transition-all ${autoSaveConfig.intervalMinutes === mins && autoSaveConfig.enabled
                           ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 font-semibold"
                           : "bg-[#181b24] border-[#252938] text-gray-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       {mins}m
                     </button>
@@ -352,7 +350,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181b22] hover:bg-[#222631] border border-[#2b2f3d] text-cyan-400 text-xs font-medium transition-all shadow-sm hover:border-cyan-500/40"
         >
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span>AI Engine</span>
+          <span>Preference</span>
         </button>
 
         <button

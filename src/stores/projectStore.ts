@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { generateElevenLabsSpeech } from "../services/elevenlabs";
 import { generateSynthesizedVoiceWav } from "../services/localTts";
 import { generateNaturalSpeechAudio } from "../services/naturalTts";
-import { optimizeImageToDataUrl, fileToDataUrl } from "../services/persistentMedia";
+import { optimizeImageToDataUrl, fileToDataUrl, saveProjectToIndexedDB, loadProjectFromIndexedDB } from "../services/persistentMedia";
 
 // --- Types ---
 
@@ -43,6 +43,11 @@ export interface Transition {
   duration: number;
 }
 
+export interface TextAnimation {
+  preset: string; // ID Preset dari textAnimationPresets.ts (misal: "fade", "pop", "slide_up", "zoom_in", "glow", dll)
+  duration: number; // Durasi animasi dalam detik (default 0.3s - 1.5s)
+}
+
 export interface Clip {
   id: string;
   trackId: string;
@@ -53,6 +58,7 @@ export interface Clip {
   end: number;
   source_start: number | null;
   source_end: number | null;
+  maxDuration?: number; // Batas durasi maksimal klip (dari file master audio / video / gambar)
   crop?: { x: number; y: number; width: number; height: number };
   transform?: { scale: number; x: number; y: number; rotation: number };
   chroma_key?: {
@@ -63,6 +69,7 @@ export interface Clip {
   };
   transition_in: Transition | null;
   transition_out: Transition | null;
+  text_animation?: TextAnimation | null;
   volume?: number;
   fade_in?: number;
   fade_out?: number;
@@ -77,6 +84,16 @@ export interface Track {
   locked?: boolean;
   muted?: boolean;
   visible?: boolean;
+}
+
+export interface AudioProviderWeb {
+  id: string;
+  name: string;
+  url: string;
+  category: "free" | "paid" | "freemium";
+  description: string;
+  apiEndpoint?: string;
+  apiKey?: string;
 }
 
 export interface AiProviderConfig {
@@ -97,6 +114,7 @@ export interface AiProviderConfig {
     modelSize: "tiny" | "base" | "small" | "medium";
     apiKey: string;
   };
+  audioProviders?: AudioProviderWeb[];
 }
 
 export interface ProjectMeta {
@@ -331,6 +349,66 @@ const initialData = getInitialProjectData();
 
 const savedAiCfg = getSavedAiSettings();
 
+export const DEFAULT_AUDIO_PROVIDERS: AudioProviderWeb[] = [
+  {
+    id: "youtube_audio",
+    name: "YouTube Audio Library",
+    url: "https://studio.youtube.com/channel/UCIK169Te0HXnijNsrRFExRg/music",
+    category: "free",
+    description: "Koleksi musik & SFX resmi bebas klaim hak cipta dari YouTube Studio untuk kreator.",
+  },
+  {
+    id: "freesound",
+    name: "Freesound.org",
+    url: "https://freesound.org",
+    category: "free",
+    description: "Database 500,000+ efek suara & musik gratis lisensi Creative Commons (Mendukung Freesound API Key).",
+    apiKey: "",
+  },
+  {
+    id: "pixabay_music",
+    name: "Pixabay Music & SFX",
+    url: "https://pixabay.com/music",
+    category: "free",
+    description: "Musik latar bebas royalti & sound effects untuk konten komersial tanpa atribusi.",
+  },
+  {
+    id: "incompetech",
+    name: "Incompetech (Kevin MacLeod)",
+    url: "https://incompetech.com/music/royalty-free/music.html",
+    category: "free",
+    description: "Koleksi musik latar sinematik legendaris bebas royalti.",
+  },
+  {
+    id: "freemusicarchive",
+    name: "Free Music Archive (FMA)",
+    url: "https://freemusicarchive.org",
+    category: "free",
+    description: "Kurasi musik berkualitas tinggi dari musisi independen seluruh dunia.",
+  },
+  {
+    id: "artlist",
+    name: "Artlist.io",
+    url: "https://artlist.io",
+    category: "paid",
+    description: "Katalog musik & SFX sinematik premium kelas Hollywood untuk kreator pro.",
+  },
+  {
+    id: "epidemic_sound",
+    name: "Epidemic Sound",
+    url: "https://www.epidemicsound.com",
+    category: "paid",
+    description: "Pustaka 40,000+ lagu berlisensi bebas klaim hak cipta untuk YouTube/TikTok/Film.",
+  },
+  {
+    id: "audiio",
+    name: "Audiio.com",
+    url: "https://audiio.com",
+    category: "paid",
+    description: "Layanan musik latar & SFX sinematik berbayar dengan opsi lisensi lifetime.",
+  },
+];
+
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   meta: initialData.meta,
   characters: initialData.characters,
@@ -361,6 +439,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ...((initialData as any).aiSettings?.autoSubtitle || {}),
       ...(savedAiCfg?.autoSubtitle || {}),
     },
+    audioProviders:
+      (initialData as any).aiSettings?.audioProviders ||
+      savedAiCfg?.audioProviders ||
+      DEFAULT_AUDIO_PROVIDERS,
   },
 
   autoSaveConfig: (initialData as any).autoSaveConfig || {
@@ -420,7 +502,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         episodes: state.episodes,
         timeline: state.timeline,
       };
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectData));
+
+      // 1. Simpan ke IndexedDB (Kapasitas tidak terbatas, mampu menampung file video/audio base64 ratusan MB)
+      saveProjectToIndexedDB(projectData).catch((err) => {
+        console.warn("Gagal simpan ke IndexedDB:", err);
+      });
+
+      // 2. Coba simpan salinan ke localStorage jika ukuran mencukupi
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectData));
+      } catch (lsErr) {
+        // localStorage kuota 5MB biasanya penuh jika ada video, ini normal dan aman karena IndexedDB sudah menyimpan lengkap
+        console.info("Ukuran data melampaui kuota 5MB localStorage, data tersimpan aman di IndexedDB.");
+      }
+
       set((s) => ({
         autoSaveConfig: { ...s.autoSaveConfig, lastSavedAt: nowStr },
       }));
@@ -462,6 +557,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           ...state.aiSettings.autoSubtitle,
           ...(settings.autoSubtitle || {}),
         },
+        audioProviders: settings.audioProviders || state.aiSettings.audioProviders || DEFAULT_AUDIO_PROVIDERS,
       };
 
       try {
@@ -759,14 +855,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
 
-  insertSceneToTimeline: (episodeId, sceneId, audioOnly = true) => {
+  insertSceneToTimeline: (episodeId, sceneId, audioOnly = false) => {
     const state = get();
     const episode = state.episodes.find((e) => e.id === episodeId);
     const scene = episode?.scenes.find((s) => s.scene_id === sceneId);
     if (!scene) return;
 
     const character = state.characters.find((c) => c.id === scene.character_id);
-    const speakerLabel = character?.name || "Narasi";
+    const speakerLabel = character?.name || (scene.character_id === "" ? "Narasi" : "Dialog");
 
     let audioTrack = state.timeline.tracks.find((t) => t.type === "audio");
     if (!audioTrack) {
@@ -774,18 +870,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       audioTrack = get().timeline.tracks.find((t) => t.type === "audio");
     }
     let subTrack = state.timeline.tracks.find((t) => t.type === "subtitle");
-    let charTrack = state.timeline.tracks.find((t) => t.type === "image");
+    if (!subTrack) {
+      get().addTrack("subtitle");
+      subTrack = get().timeline.tracks.find((t) => t.type === "subtitle");
+    }
 
     const startTime = state.currentTime;
-    const endTime = startTime + (scene.duration || 3.5);
+    const clipDur = scene.duration || 3.5;
+    const endTime = startTime + clipDur;
 
-    // 1. Masukkan Audio TTS ke Track Audio jika ada
+    // 1. Masukkan Audio TTS / rekaman ke Track Audio jika ada
     if (audioTrack && scene.audio_url) {
       get().addClipToTrack(audioTrack.id, {
         characterId: character?.id,
         source: scene.audio_url,
         start: startTime,
         end: endTime,
+        maxDuration: clipDur, // kunci batas durasi master audio
         volume: 1.0,
       });
     }
@@ -805,27 +906,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           source: scene.media_url,
           start: startTime,
           end: endTime,
+          maxDuration: clipDur, // kunci batas durasi master visual
         });
       }
-    }
-
-    // Jika audioOnly = false, baru masukkan Subtitle dan Gambar Karakter Avatar
-    if (!audioOnly) {
-      if (subTrack) {
-        get().addClipToTrack(subTrack.id, {
-          characterId: character?.id,
-          text: `[${speakerLabel}]: ${scene.script}`,
-          start: startTime,
-          end: endTime,
-        });
+    } else if (!audioOnly && character?.avatar) {
+      // Jika scene tidak punya media visual spesifik tapi ada karakter dan bukan audioOnly, masukkan avatar karakter ke track gambar
+      let charTrack = state.timeline.tracks.find((t) => t.type === "image");
+      if (!charTrack) {
+        get().addTrack("image");
+        charTrack = get().timeline.tracks.find((t) => t.type === "image");
       }
-
-      if (charTrack && character?.avatar) {
+      if (charTrack) {
         get().addClipToTrack(charTrack.id, {
-          characterId: character?.id,
+          characterId: character.id,
           source: character.avatar,
           start: startTime,
           end: endTime,
+          maxDuration: clipDur,
           chroma_key: {
             enabled: true,
             color: "#00FF00",
@@ -836,11 +933,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
     }
 
-    // Kembalikan playhead ke titik awal klip yang baru dimasukkan agar pengguna bisa langsung mendengarkan dengan menekan Play
-    get().setCurrentTime(startTime);
+    // 3. Masukkan Subtitle teks naskah jika ada teks naskah dan BUKAN scene murni media (video/image)
+    // Untuk scene video atau gambar, teks di scene hanyalah prompt/deskripsi media sehingga tidak dikirim ke subtitle
+    const isPureVisualScene = scene.media_type === "video" || scene.media_type === "image";
+    if (!audioOnly && !isPureVisualScene && subTrack && scene.script && scene.script.trim()) {
+      get().addClipToTrack(subTrack.id, {
+        characterId: character?.id,
+        text: `[${speakerLabel}]: ${scene.script}`,
+        start: startTime,
+        end: endTime,
+        maxDuration: clipDur,
+      });
+    }
+
+    // Geser playhead ke akhir klip yang baru dimasukkan agar penambahan scene berikutnya menyambung otomatis
+    get().setCurrentTime(endTime);
   },
 
-  insertEpisodeToTimeline: (episodeId, audioOnly = true) => {
+  insertEpisodeToTimeline: (episodeId, audioOnly = false) => {
     const state = get();
     const episode = state.episodes.find((e) => e.id === episodeId);
     if (!episode || episode.scenes.length === 0) return;
@@ -914,11 +1024,35 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const track = state.timeline.tracks.find((t) => t.id === trackId);
       if (!track) return state;
 
+      const duration = (clipData.end ?? 5) - (clipData.start ?? 0);
+      const clipDuration = duration > 0 ? duration : 5;
+
+      let start = clipData.start !== undefined ? clipData.start : state.currentTime;
+      let end = clipData.end !== undefined ? clipData.end : start + clipDuration;
+
+      // Smart Placement (Anti-Overlap):
+      // Jika penempatan klip baru menumpuk klip yang sudah ada di track ini,
+      // otomatis cari posisi kosong pertama setelah klip yang bertabrakan.
+      if (track.clips.length > 0) {
+        // Urutkan klip yang sudah ada berdasarkan waktu mulai
+        const sortedClips = [...track.clips].sort((a, b) => a.start - b.start);
+
+        // Periksa apakah waktu saat ini bertabrakan dengan klip yang ada
+        let adjustedStart = start;
+        for (const existingClip of sortedClips) {
+          // Tabrakan terjadi jika interval waktu overlap
+          if (adjustedStart < existingClip.end && (adjustedStart + clipDuration) > existingClip.start) {
+            // Geser start ke akhir klip yang bertabrakan
+            adjustedStart = existingClip.end;
+          }
+        }
+        start = adjustedStart;
+        end = start + clipDuration;
+      }
+
       const newClip: Clip = {
         id: genId("clip"),
         trackId,
-        start: clipData.start ?? state.currentTime,
-        end: clipData.end ?? state.currentTime + 5,
         source: clipData.source,
         text: clipData.text,
         source_start: 0,
@@ -926,18 +1060,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         transition_in: null,
         transition_out: null,
         ...clipData,
+        // Pastikan start dan end yang sudah bebas tabrakan digunakan
+        start,
+        end,
       };
 
       const updatedTracks = state.timeline.tracks.map((t) =>
         t.id === trackId ? { ...t, clips: [...t.clips, newClip] } : t
       );
 
-      // Otomatis sesuaikan durasi jika melebihi durasi sekarang
+      // Otomatis sesuaikan durasi total timeline jika melebihi durasi sekarang
       const maxEnd = Math.max(state.meta.duration, newClip.end + 5);
 
       return {
         timeline: { ...state.timeline, tracks: updatedTracks },
         selectedClipId: newClip.id,
+        // JANGAN ubah state.currentTime di addClipToTrack agar klip-klip paralel di track lain tetap menggunakan start time yang sama
         meta: { ...state.meta, duration: maxEnd },
       };
     }),
@@ -1018,12 +1156,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         clips: track.clips.map((clip) => {
           if (clip.id !== clipId) return clip;
 
+          // Jika klip belum memiliki maxDuration (misal dari project lama), hitung dari durasi awal klip
+          const maxAllowed = clip.maxDuration || (clip.end - clip.start);
+
           if (edge === "left") {
-            const validStart = Math.max(0, Math.min(newTime, clip.end - 0.2));
-            return { ...clip, start: validStart };
+            // Trim kiri: bisa memotong/mengurangi durasi, tapi tidak bisa ditarik ke kiri melebihi batas durasi master
+            const minStart = clip.end - maxAllowed;
+            const validStart = Math.max(minStart, Math.max(0, Math.min(newTime, clip.end - 0.2)));
+            return { ...clip, start: validStart, maxDuration: maxAllowed };
           } else {
-            const validEnd = Math.max(clip.start + 0.2, newTime);
-            return { ...clip, end: validEnd };
+            // Trim kanan: bisa dikurangi, TAPI TIDAK BISA diperpanjang melebihi durasi master file
+            const maxEnd = clip.start + maxAllowed;
+            const validEnd = Math.min(maxEnd, Math.max(clip.start + 0.2, newTime));
+            return { ...clip, end: validEnd, maxDuration: maxAllowed };
           }
         }),
       }));
@@ -1215,9 +1360,33 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
 
     if (track) {
-      const defaultDuration = targetTrackType === "image" ? 5 : 8;
+      let measuredDuration = targetTrackType === "image" ? 5 : 8;
+
+      if (targetTrackType === "audio") {
+        measuredDuration = await new Promise<number>((resolve) => {
+          const a = new Audio(persistentUrl);
+          a.onloadedmetadata = () => {
+            const d = isNaN(a.duration) || !isFinite(a.duration) ? 8 : parseFloat(a.duration.toFixed(2));
+            resolve(d);
+          };
+          a.onerror = () => resolve(8);
+          setTimeout(() => resolve(8), 2000);
+        });
+      } else if (targetTrackType === "video") {
+        measuredDuration = await new Promise<number>((resolve) => {
+          const v = document.createElement("video");
+          v.src = persistentUrl;
+          v.onloadedmetadata = () => {
+            const d = isNaN(v.duration) || !isFinite(v.duration) ? 8 : parseFloat(v.duration.toFixed(2));
+            resolve(d);
+          };
+          v.onerror = () => resolve(8);
+          setTimeout(() => resolve(8), 2000);
+        });
+      }
+
       const start = state.currentTime;
-      const end = start + defaultDuration;
+      const end = start + measuredDuration;
 
       const newClip: Clip = {
         id: genId("clip"),
@@ -1225,8 +1394,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         source: persistentUrl,
         start,
         end,
+        maxDuration: measuredDuration, // Kunci durasi master file audio/video saat di-import
         source_start: 0,
-        source_end: defaultDuration,
+        source_end: measuredDuration,
         transform: { scale: 1, x: 0, y: 0, rotation: 0 },
         crop: { x: 0, y: 0, width: 1920, height: 1080 },
         transition_in: null,
@@ -1242,6 +1412,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
 }));
+
+// Secara asinkron muat data dari IndexedDB saat inisialisasi awal
+// Ini memastikan file video/audio besar yang tersimpan di IndexedDB langsung terisi ke store setelah refresh
+setTimeout(async () => {
+  try {
+    const idbData = await loadProjectFromIndexedDB();
+    if (idbData && idbData.timeline && idbData.meta) {
+      useProjectStore.setState({
+        meta: idbData.meta,
+        characters: idbData.characters || [],
+        episodes: idbData.episodes || [],
+        timeline: idbData.timeline,
+        ...(idbData.ai_settings ? { aiSettings: idbData.ai_settings } : {}),
+      });
+    }
+  } catch (e) {
+    console.warn("Init load from IndexedDB error:", e);
+  }
+}, 20);
 
 // Auto-save timer interval dinamis tanpa perlu mendownload/membuat file baru
 let _autoSaveTimer: ReturnType<typeof setInterval> | null = null;

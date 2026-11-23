@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useProjectStore } from "../../stores/projectStore";
+import { useProjectStore, AudioProviderWeb, DEFAULT_AUDIO_PROVIDERS } from "../../stores/projectStore";
 import {
   DEFAULT_ELEVENLABS_VOICES,
   fetchElevenLabsVoices,
@@ -17,10 +17,18 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
   const aiSettings = useProjectStore((s) => s.aiSettings);
   const updateAiSettings = useProjectStore((s) => s.updateAiSettings);
 
-  const [activeTab, setActiveTab] = useState<"tts" | "image" | "sub">("tts");
+  const [activeTab, setActiveTab] = useState<"tts" | "image" | "sub" | "audio_providers">("tts");
   const [ttsSettings, setTtsSettings] = useState(aiSettings.tts);
   const [imageSettings, setImageSettings] = useState(aiSettings.imageGen);
   const [subSettings, setSubSettings] = useState(aiSettings.autoSubtitle);
+  const [audioProviders, setAudioProviders] = useState<AudioProviderWeb[]>(
+    aiSettings.audioProviders || DEFAULT_AUDIO_PROVIDERS
+  );
+  const [newProvName, setNewProvName] = useState("");
+  const [newProvUrl, setNewProvUrl] = useState("");
+  const [newProvCategory, setNewProvCategory] = useState<"free" | "paid" | "freemium">("free");
+  const [newProvDesc, setNewProvDesc] = useState("");
+  const [newProvApiKey, setNewProvApiKey] = useState("");
   const [savedNotification, setSavedNotification] = useState(false);
   const [elevenLabsVoiceList, setElevenLabsVoiceList] = useState<ElevenLabsVoice[]>(DEFAULT_ELEVENLABS_VOICES);
   const [elevenLabsModelList, setElevenLabsModelList] = useState<ElevenLabsModel[]>(DEFAULT_ELEVENLABS_MODELS);
@@ -47,12 +55,37 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
       tts: ttsSettings,
       imageGen: imageSettings,
       autoSubtitle: subSettings,
+      audioProviders: audioProviders,
     });
     setSavedNotification(true);
     setTimeout(() => {
       setSavedNotification(false);
       onClose();
     }, 800);
+  };
+
+  const handleAddProvider = () => {
+    if (!newProvName.trim() || !newProvUrl.trim()) {
+      alert("Nama penyedia dan URL wajib diisi!");
+      return;
+    }
+    const newProv: AudioProviderWeb = {
+      id: `prov-${Date.now()}`,
+      name: newProvName.trim(),
+      url: newProvUrl.trim(),
+      category: newProvCategory,
+      description: newProvDesc.trim() || "Penyedia audio kustom.",
+      apiKey: newProvApiKey.trim() || undefined,
+    };
+    setAudioProviders([...audioProviders, newProv]);
+    setNewProvName("");
+    setNewProvUrl("");
+    setNewProvDesc("");
+    setNewProvApiKey("");
+  };
+
+  const handleRemoveProvider = (id: string) => {
+    setAudioProviders(audioProviders.filter((p) => p.id !== id));
   };
 
   return (
@@ -108,6 +141,16 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
             }`}
           >
             💬 Whisper Auto-Subtitle
+          </button>
+          <button
+            onClick={() => setActiveTab("audio_providers")}
+            className={`py-2 px-3 font-medium transition-colors border-b-2 ${
+              activeTab === "audio_providers"
+                ? "border-cyan-400 text-cyan-300"
+                : "border-transparent text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            🎵 Web Penyedia Audio
           </button>
         </div>
 
@@ -450,6 +493,171 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 4: AUDIO PROVIDERS SETTINGS */}
+          {activeTab === "audio_providers" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>🌐</span>
+                    <span>Daftar Web Penyedia Audio (Free / Berbayar)</span>
+                  </h3>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Web penyedia audio ini akan otomatis tampil di tab Audios samping kiri untuk didownload atau dimasukkan ke timeline.
+                  </p>
+                </div>
+              </div>
+
+              {/* Form Tambah Web Baru */}
+              <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700/80 space-y-2.5">
+                <span className="text-[11px] font-semibold text-cyan-300 block">
+                  + Tambah Web Penyedia Audio Baru
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-1">Nama Web / Sumber</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Freesound, Pixabay, AudioJungle..."
+                      value={newProvName}
+                      onChange={(e) => setNewProvName(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-1">Kategori Lisensi</label>
+                    <select
+                      value={newProvCategory}
+                      onChange={(e) => setNewProvCategory(e.target.value as any)}
+                      className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+                    >
+                      <option value="free">🟢 Free (Gratis / Bebas Royalti)</option>
+                      <option value="paid">💎 Paid (Berbayar / Langganan)</option>
+                      <option value="freemium">⚖️ Freemium (Gratis & Opsi Berbayar)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1">URL Website</label>
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={newProvUrl}
+                    onChange={(e) => setNewProvUrl(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 font-mono text-[11px] focus:border-cyan-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1">Deskripsi Singkat</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Efek suara game, BGM sinematik, SFX alam..."
+                    value={newProvDesc}
+                    onChange={(e) => setNewProvDesc(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-gray-400 block mb-1">
+                    API Key / Token (Opsional, contoh: Freesound APIv2 Key)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Masukkan API Key jika web penyedia menyediakan API..."
+                    value={newProvApiKey}
+                    onChange={(e) => setNewProvApiKey(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 font-mono text-[11px] focus:border-cyan-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={handleAddProvider}
+                    className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-semibold shadow transition-all flex items-center gap-1.5"
+                  >
+                    <span>➕</span>
+                    <span>Tambahkan ke Daftar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* List Web Penyedia yang Ada */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-semibold text-gray-300 block">
+                  Penyedia Audio Terdaftar ({audioProviders.length})
+                </span>
+                <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
+                  {audioProviders.map((prov) => (
+                    <div
+                      key={prov.id}
+                      className="p-2.5 bg-gray-800/40 rounded-lg border border-gray-800 flex items-center justify-between hover:border-gray-700 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1 mr-3">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-200 text-[11px] truncate">
+                            {prov.name}
+                          </p>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
+                              prov.category === "free"
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                : prov.category === "paid"
+                                ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                            }`}
+                          >
+                            {prov.category}
+                          </span>
+                        </div>
+                        <a
+                          href={prov.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-cyan-400/80 hover:text-cyan-300 truncate block font-mono hover:underline mt-0.5"
+                        >
+                          {prov.url}
+                        </a>
+                        <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                          {prov.description}
+                        </p>
+                        {prov.id === "freesound" && (
+                          <div className="mt-1.5 pt-1.5 border-t border-gray-700/50 flex items-center gap-2">
+                            <span className="text-[9px] text-amber-300 font-mono">Freesound API Token:</span>
+                            <input
+                              type="password"
+                              placeholder="Masukkan Freesound API Key..."
+                              value={prov.apiKey || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setAudioProviders(
+                                  audioProviders.map((p) =>
+                                    p.id === "freesound" ? { ...p, apiKey: val } : p
+                                  )
+                                );
+                              }}
+                              className="flex-1 px-1.5 py-0.5 bg-gray-950 border border-gray-700 rounded text-[10px] text-gray-200 focus:outline-none focus:border-cyan-500 font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => handleRemoveProvider(prov.id)}
+                        className="text-gray-500 hover:text-red-400 p-1.5 rounded hover:bg-red-500/10 transition-colors"
+                        title="Hapus penyedia"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

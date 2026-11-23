@@ -97,9 +97,25 @@ export default function StoryEpisode() {
         firstDataUrl = await fileToDataUrl(firstFile);
       }
 
+      // Dapatkan durasi aktual jika file adalah video
+      let firstDuration = 3.5;
+      if (isVideo) {
+        firstDuration = await new Promise<number>((resolve) => {
+          const v = document.createElement("video");
+          v.src = firstDataUrl;
+          v.onloadedmetadata = () => {
+            const d = isNaN(v.duration) || !isFinite(v.duration) ? 3.5 : parseFloat(v.duration.toFixed(2));
+            resolve(d);
+          };
+          v.onerror = () => resolve(3.5);
+          setTimeout(() => resolve(3.5), 2000);
+        });
+      }
+
       updateScene(uploadTargetScene.episodeId, uploadTargetScene.sceneId, {
         media_url: firstDataUrl,
         media_type: isVideo ? "video" : "image",
+        ...(isVideo ? { duration: firstDuration } : {}),
       });
 
       // Jika user memilih beberapa file sekaligus saat upload di scene, buatkan scene visual otomatis untuk sisa file
@@ -113,12 +129,26 @@ export default function StoryEpisode() {
           dataUrl = await fileToDataUrl(file);
         }
 
+        let itemDuration = 3.5;
+        if (isFileVideo) {
+          itemDuration = await new Promise<number>((resolve) => {
+            const v = document.createElement("video");
+            v.src = dataUrl;
+            v.onloadedmetadata = () => {
+              const d = isNaN(v.duration) || !isFinite(v.duration) ? 3.5 : parseFloat(v.duration.toFixed(2));
+              resolve(d);
+            };
+            v.onerror = () => resolve(3.5);
+            setTimeout(() => resolve(3.5), 2000);
+          });
+        }
+
         addSceneToEpisode(uploadTargetScene.episodeId, {
           character_id: "",
           script: file.name.replace(/\.[^/.]+$/, ""),
           media_url: dataUrl,
           media_type: isFileVideo ? "video" : "image",
-          duration: 3.5,
+          duration: itemDuration,
         });
       }
     } catch (err) {
@@ -265,12 +295,25 @@ export default function StoryEpisode() {
               <h4 className="font-semibold text-gray-300 text-[11px] uppercase tracking-wider shrink-0">
                 🎭 Naskah Per Scene ({activeEpisode.scenes.length})
               </h4>
-              <button
-                onClick={() => addSceneToEpisode(activeEpisode.id)}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded text-[11px] transition-colors shrink-0 shadow-sm"
-              >
-                + Scene
-              </button>
+              <div className="flex items-center gap-1.5">
+                {activeEpisode.scenes.length > 0 && (
+                  <button
+                    onClick={() => {
+                      useProjectStore.getState().insertEpisodeToTimeline(activeEpisode.id, false);
+                    }}
+                    className="px-2 py-1 bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-300 font-medium rounded text-[11px] transition-colors shrink-0 shadow-sm"
+                    title="Masukkan semua scene dalam episode ini ke Timeline sekaligus (Audio, Visual, Subtitle)"
+                  >
+                    ⚡
+                  </button>
+                )}
+                <button
+                  onClick={() => addSceneToEpisode(activeEpisode.id)}
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded text-[11px] transition-colors shrink-0 shadow-sm"
+                >
+                  + Scene
+                </button>
+              </div>
             </div>
 
             {/* Toolbar Search & Filter Scene */}
@@ -604,15 +647,15 @@ export default function StoryEpisode() {
                         </div>
                       )}
 
-                      <button
-                        onClick={() => insertSceneToTimeline(activeEpisode.id, scene.scene_id, true)}
-                        className="px-2 py-0.5 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded text-[10px] transition-colors"
-                        title="Tambahkan scene ini ke Timeline saat ini"
-                      >
-                        {scene.media_type === "image" || scene.media_type === "video"
-                          ? "➡️ Timeline (Visual)"
-                          : "➡️ Timeline (Audio)"}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => insertSceneToTimeline(activeEpisode.id, scene.scene_id, false)}
+                          className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] transition-colors font-medium shadow-sm"
+                          title="Tambahkan scene ini ke Timeline (Audio, Visual & Subtitle)"
+                        >
+                          ➡️ Timeline
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

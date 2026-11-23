@@ -1,9 +1,10 @@
-// Service penyimpanan persisten media lokal menggunakan IndexedDB
-// Menyimpan foto/video/audio sebagai data base64/blob secara permanen, sehingga tidak rusak (broken) saat halaman di-refresh
+// Service penyimpanan persisten project & media lokal menggunakan IndexedDB
+// Menyimpan proyek beserta data video/audio/gambar berukuran besar tanpa batasan kuota 5MB localStorage
 
-const DB_NAME = "kreatif_studio_media_db";
-const STORE_NAME = "media_files";
-const DB_VERSION = 1;
+const DB_NAME = "kreatif_studio_db";
+const MEDIA_STORE = "media_files";
+const PROJECT_STORE = "project_state";
+const DB_VERSION = 2;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -15,8 +16,11 @@ function openDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(MEDIA_STORE)) {
+        db.createObjectStore(MEDIA_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(PROJECT_STORE)) {
+        db.createObjectStore(PROJECT_STORE, { keyPath: "key" });
       }
     };
 
@@ -35,9 +39,13 @@ export function fileToDataUrl(file: File | Blob): Promise<string> {
   });
 }
 
-// Kompresi gambar besar agar muat dan sangat ringan di local storage jika diperlukan
-export async function optimizeImageToDataUrl(file: File, maxWidth = 1280, maxHeight = 1280, quality = 0.88): Promise<string> {
-  // Jika bukan gambar biasa atau file SVG/GIF animasi, langsung baca apa adanya
+// Kompresi gambar besar agar muat dan sangat ringan
+export async function optimizeImageToDataUrl(
+  file: File,
+  maxWidth = 1920,
+  maxHeight = 1080,
+  quality = 0.9
+): Promise<string> {
   if (!file.type.startsWith("image/") || file.type.includes("gif") || file.type.includes("svg")) {
     return fileToDataUrl(file);
   }
@@ -65,13 +73,11 @@ export async function optimizeImageToDataUrl(file: File, maxWidth = 1280, maxHei
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        // Fallback jika tidak ada context 2D
         fileToDataUrl(file).then(resolve).catch(reject);
         return;
       }
 
       ctx.drawImage(img, 0, 0, width, height);
-      // Gunakan PNG jika ada alpha channel/transparansi, selain itu JPEG
       const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
       const resultDataUrl = canvas.toDataURL(mime, quality);
       resolve(resultDataUrl);
@@ -86,12 +92,12 @@ export async function optimizeImageToDataUrl(file: File, maxWidth = 1280, maxHei
   });
 }
 
-// Simpan file ke IndexedDB untuk penyimpanan ukuran besar
+// Simpan media individual ke IndexedDB
 export async function saveMediaToIndexedDB(id: string, dataUrl: string): Promise<void> {
   try {
     const db = await openDB();
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(MEDIA_STORE, "readwrite");
+    const store = tx.objectStore(MEDIA_STORE);
     store.put({ id, dataUrl, savedAt: Date.now() });
     return new Promise((resolve, reject) => {
       tx.oncomplete = () => resolve();
@@ -102,12 +108,12 @@ export async function saveMediaToIndexedDB(id: string, dataUrl: string): Promise
   }
 }
 
-// Ambil file dari IndexedDB
+// Ambil media individual dari IndexedDB
 export async function getMediaFromIndexedDB(id: string): Promise<string | null> {
   try {
     const db = await openDB();
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(MEDIA_STORE, "readonly");
+    const store = tx.objectStore(MEDIA_STORE);
     const request = store.get(id);
     return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result?.dataUrl || null);
@@ -115,6 +121,39 @@ export async function getMediaFromIndexedDB(id: string): Promise<string | null> 
     });
   } catch (err) {
     console.warn("Gagal membaca dari IndexedDB:", err);
+    return null;
+  }
+}
+
+// Simpan seluruh data Project ke IndexedDB (Mendukung ratusan MB file video/audio)
+export async function saveProjectToIndexedDB(projectData: unknown): Promise<void> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(PROJECT_STORE, "readwrite");
+    const store = tx.objectStore(PROJECT_STORE);
+    store.put({ key: "active_project", data: projectData, updated_at: Date.now() });
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn("Gagal menyimpan project ke IndexedDB:", err);
+  }
+}
+
+// Ambil data Project dari IndexedDB saat aplikasi pertama kali dibuka / di-refresh
+export async function loadProjectFromIndexedDB(): Promise<any | null> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(PROJECT_STORE, "readonly");
+    const store = tx.objectStore(PROJECT_STORE);
+    const request = store.get("active_project");
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result?.data || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn("Gagal membaca project dari IndexedDB:", err);
     return null;
   }
 }

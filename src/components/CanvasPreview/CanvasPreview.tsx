@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useProjectStore, Clip, Track } from "../../stores/projectStore";
-import { playSpokenSpeech } from "../../services/naturalTts";
 
 export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTimeRef = useRef<number>(performance.now());
   const mediaCacheRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement | HTMLAudioElement>>(new Map());
+  const chromaCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const tracks = useProjectStore((s) => s.timeline.tracks);
   const currentTime = useProjectStore((s) => s.currentTime);
@@ -19,9 +19,41 @@ export default function CanvasPreview() {
   const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
   const isPlayingRef = useRef(false);
   isPlayingRef.current = isPlaying;
-  const currentTimeRef = useRef(currentTime);
-  currentTimeRef.current = currentTime;
+  const currentTimeRef = useRef(useProjectStore.getState().currentTime);
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+  const timeDisplayRef = useRef<HTMLSpanElement>(null);
   const spokenSubtitleRef = useRef<Set<string>>(new Set());
+  const activeAudioClipsRef = useRef<Set<string>>(new Set());
+  const activeVideoClipsRef = useRef<Set<string>>(new Set());
+
+  // Sinkronkan currentTimeRef hanya saat TIDAK sedang playing (misal saat user scrub timeline / klik playhead)
+  useEffect(() => {
+    if (!isPlayingRef.current) {
+      currentTimeRef.current = currentTime;
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = formatTime(currentTime);
+      }
+      renderFrame();
+    }
+  }, [currentTime]);
+
+  // Reset audio & video playback state saat playhead di-pause atau di-stop
+  useEffect(() => {
+    if (!isPlaying) {
+      activeAudioClipsRef.current.clear();
+      activeVideoClipsRef.current.clear();
+      spokenSubtitleRef.current.clear();
+      // Jeda semua elemen audio & video di cache saat pause
+      mediaCacheRef.current.forEach((el) => {
+        if (el instanceof HTMLAudioElement && !el.paused) {
+          el.pause();
+        } else if (el instanceof HTMLVideoElement && !el.paused) {
+          el.pause();
+        }
+      });
+    }
+  }, [isPlaying]);
 
   // Shortcut keyboard spasi untuk Play / Pause
   useEffect(() => {
@@ -88,6 +120,7 @@ export default function CanvasPreview() {
         const aud = document.createElement("audio");
         aud.src = source;
         aud.preload = "auto";
+        aud.loop = false;
         mediaCacheRef.current.set(source, aud);
         el = aud;
       }
@@ -103,49 +136,69 @@ export default function CanvasPreview() {
 
     const width = canvas.width;
     const height = canvas.height;
+    const currTime = currentTimeRef.current;
+    const currentTracks = tracksRef.current;
+    const currentlyPlaying = isPlayingRef.current;
 
     ctx.fillStyle = "#090a0d";
     ctx.fillRect(0, 0, width, height);
 
     const activeClips: { clip: Clip; track: Track }[] = [];
-    for (const track of tracks) {
+    for (const track of currentTracks) {
       if (track.visible === false) continue; // Hormati flag layer hidden
       for (const clip of track.clips) {
-        if (currentTime >= clip.start && currentTime <= clip.end) {
+        if (currTime >= clip.start && currTime <= clip.end) {
           activeClips.push({ clip, track });
         }
       }
     }
 
     // 1. Sinkronisasi Pemutaran Audio Track (MP3 / WAV / BGM)
-    for (const track of tracks) {
+    for (const track of currentTracks) {
       if (track.type === "audio") {
         for (const clip of track.clips) {
           if (clip.source) {
             const audio = getMediaElement(clip.source, "audio") as HTMLAudioElement;
             if (audio) {
-              const isCurrentlyActive = currentTime >= clip.start && currentTime <= clip.end;
+              const isCurrentlyActive = currTime >= clip.start && currTime <= clip.end;
 
               // Matikan audio jika track dimute atau disembunyikan
               if (track.muted || track.visible === false) {
                 if (!audio.paused) audio.pause();
+                activeAudioClipsRef.current.delete(clip.id);
                 continue;
               }
 
-              if (isCurrentlyActive && isPlaying) {
-                const targetTime = currentTime - clip.start + (clip.source_start || 0);
-                // Hanya resync jika drift waktu cukup besar (> 0.6 detik) agar audio tidak tersendat/stutter
-                if (Math.abs(audio.currentTime - targetTime) > 0.6) {
-                  audio.currentTime = Math.max(0, targetTime);
+              if (isCurrentlyActive && currentlyPlaying) {
+                const audioDuration = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
+                let targetTime = currTime - clip.start + (clip.source_start || 0);
+
+                // Jika klip di timeline lebih panjang dari durasi file audio asli (misal BGM / loop audio)
+                if (audioDuration > 0 && targetTime >= audioDuration) {
+                  targetTime = targetTime % audioDuration;
                 }
-                audio.volume = clip.volume ?? 1.0;
-                if (audio.paused) {
+
+                if (!activeAudioClipsRef.current.has(clip.id)) {
+                  // Mulai audio saat playhead memasuki klip ini
+                  activeAudioClipsRef.current.add(clip.id);
+                  audio.currentTime = Math.max(0, targetTime);
+                  audio.volume = clip.volume ?? 1.0;
                   audio.play().catch(() => {});
+                } else {
+                  // Jika audio sudah berjalan tapi terhenti karena file habis sebelum klip selesai, putar ulang (loop)
+                  if (audio.ended && audioDuration > 0) {
+                    audio.currentTime = Math.max(0, targetTime);
+                    audio.play().catch(() => {});
+                  } else if (audio.paused && !audio.ended) {
+                    audio.play().catch(() => {});
+                  }
+                  audio.volume = clip.volume ?? 1.0;
                 }
               } else {
                 if (!audio.paused) {
                   audio.pause();
                 }
+                activeAudioClipsRef.current.delete(clip.id);
               }
             }
           }
@@ -187,102 +240,337 @@ export default function CanvasPreview() {
 
         if (media instanceof HTMLImageElement && media.complete && media.naturalWidth > 0) {
           ctx.save();
-          drawTransformedMedia(ctx, media, clip, width, height);
+          drawTransformedMedia(ctx, media, clip, width, height, currTime);
           ctx.restore();
         } else if (media instanceof HTMLVideoElement) {
-          const clipInternalTime = currentTime - clip.start + (clip.source_start || 0);
-          if (Math.abs(media.currentTime - clipInternalTime) > 0.15) {
-            media.currentTime = Math.max(0, clipInternalTime);
+          const videoDuration = media.duration && isFinite(media.duration) ? media.duration : 0;
+          const clipInternalTime = currTime - clip.start + (clip.source_start || 0);
+
+          let targetVideoTime = clipInternalTime;
+          if (videoDuration > 0 && targetVideoTime >= videoDuration) {
+            targetVideoTime = targetVideoTime % videoDuration;
           }
 
-          if (isPlaying && media.paused) {
-            media.play().catch(() => {});
-          } else if (!isPlaying && !media.paused) {
-            media.pause();
+          if (currentlyPlaying) {
+            if (!activeVideoClipsRef.current.has(clip.id)) {
+              // Mulai video sekali saja saat playhead masuk ke klip ini
+              activeVideoClipsRef.current.add(clip.id);
+              media.currentTime = Math.max(0, targetVideoTime);
+              media.play().catch(() => {});
+            } else {
+              // Saat video sudah running normal, HANYA sinkronkan jika drift waktu sangat jauh (> 1.2 detik)
+              // Hal ini mencegah browser menjeda decoder video (stuttering / putus-putus)
+              if (Math.abs(media.currentTime - targetVideoTime) > 1.2) {
+                media.currentTime = Math.max(0, targetVideoTime);
+              }
+              if (media.paused) {
+                media.play().catch(() => {});
+              }
+            }
+          } else {
+            if (!media.paused) {
+              media.pause();
+            }
+            activeVideoClipsRef.current.delete(clip.id);
+            // Saat di-pause atau di-scrub oleh user, update frame ke target time
+            if (Math.abs(media.currentTime - targetVideoTime) > 0.05) {
+              media.currentTime = Math.max(0, targetVideoTime);
+            }
           }
 
-          if (media.readyState >= 2) {
+          // Render video ke canvas
+          if (media.readyState >= 1) {
             ctx.save();
-            drawTransformedMedia(ctx, media, clip, width, height);
+            drawTransformedMedia(ctx, media, clip, width, height, currTime);
             ctx.restore();
           }
         }
       }
     }
 
-    // 3. Subtitle Rendering & Live Spoken Speech
+    // 3. Subtitle Rendering (dengan animasi teks dinamis & automatic word wrapping)
     for (const { clip, track } of activeClips) {
       if (track.type === "subtitle" && clip.text) {
-        // Jika sedang play dan subtitle ini belum dibacakan suaranya di sesi play saat ini
-        if (isPlaying && !spokenSubtitleRef.current.has(clip.id)) {
-          spokenSubtitleRef.current.add(clip.id);
-          // Cek apakah ada klip audio bersamaan di timeline untuk dialog ini yang sumber audionya valid dan dapat diputar
-          const hasLinkedAudioClip = tracks.some(
-            (t) =>
-              t.type === "audio" &&
-              t.clips.some((c) => {
-                if (Math.abs(c.start - clip.start) < 0.25 && c.source) {
-                  // Jika klip audio mengarah ke dummy file yang tidak ada, jangan anggap playable audio
-                  return !c.source.startsWith("cache/audio/") && !c.source.startsWith("mock");
-                }
-                return false;
-              })
-          );
+        ctx.save();
+        const baseFontSize = (clip.style?.fontSize as number) || Math.max(18, Math.round(height * 0.032));
+        const lineHeight = Math.round(baseFontSize * 1.35);
+        const fontColor = (clip.style?.color as string) || "#ffffff";
+        const bgColor = (clip.style?.backgroundColor as string) || "rgba(0, 0, 0, 0.82)";
 
-          // Jalankan speech synthesis jika tidak ada klip audio playable di timeline
-          if (!hasLinkedAudioClip) {
-            const cleanSpeechText = clip.text.replace(/^\[.*?\]:\s*/, "");
-            playSpokenSpeech(cleanSpeechText, "id-ID", 1.0);
+        // Hitung Animasi Teks Masuk
+        const anim = clip.text_animation || { preset: "none", duration: 0.5 };
+        const animPreset = anim.preset || "none";
+        const animDur = anim.duration || 0.5;
+        const timeSinceStart = Math.max(0, currTime - clip.start);
+        const animProgress = Math.min(1, timeSinceStart / animDur);
+
+        // State transformasi & opacity dari animasi teks
+        let textOpacity = 1;
+        let textScale = 1;
+        let textOffsetY = 0;
+        let textOffsetX = 0;
+        let textRotation = 0;
+        let displayText = clip.text;
+
+        // Custom shadow styling dari clip style
+        if (clip.style?.shadowColor) {
+          ctx.shadowColor = clip.style.shadowColor as string;
+          ctx.shadowBlur = (clip.style.shadowBlur as number) || 12;
+        }
+
+        if (animPreset === "fade" || animPreset === "fade_blur" || animPreset === "fade_slow" || animPreset === "fade_black_box" || animPreset === "fade_gold" || animPreset === "fade_minimalist") {
+          textOpacity = animProgress;
+        } else if (animPreset === "fade_flash") {
+          textOpacity = animProgress < 0.3 ? 0.3 + animProgress * 2.3 : 1;
+        } else if (animPreset === "pop" || animPreset === "elastic_pop") {
+          textOpacity = Math.min(1, animProgress * 1.5);
+          textScale = animProgress < 0.7 ? 0.3 + animProgress * 1.2 : 1.14 - (animProgress - 0.7) * 0.46;
+        } else if (animPreset === "slide_up" || animPreset === "slide_elastic_up" || animPreset === "slide_overshoot") {
+          textOpacity = animProgress;
+          textOffsetY = (1 - animProgress) * (baseFontSize * 1.5);
+        } else if (animPreset === "slide_down") {
+          textOpacity = animProgress;
+          textOffsetY = -(1 - animProgress) * (baseFontSize * 1.5);
+        } else if (animPreset === "slide_left") {
+          textOpacity = animProgress;
+          textOffsetX = (1 - animProgress) * (width * 0.4);
+        } else if (animPreset === "slide_right") {
+          textOpacity = animProgress;
+          textOffsetX = -(1 - animProgress) * (width * 0.4);
+        } else if (animPreset === "slide_diagonal") {
+          textOpacity = animProgress;
+          textOffsetX = (1 - animProgress) * (width * 0.25);
+          textOffsetY = (1 - animProgress) * (baseFontSize * 1.5);
+        } else if (animPreset === "bounce" || animPreset === "heavy_drop_bounce" || animPreset === "soft_spring" || animPreset === "cartoon_boing" || animPreset === "rebound_slam" || animPreset === "quiver_bounce" || animPreset === "triple_bounce") {
+          textOpacity = Math.min(1, animProgress * 2);
+          textScale = 0.4 + Math.sin(animProgress * Math.PI) * 0.7 + (animProgress >= 1 ? 0.6 : 0);
+          if (animProgress >= 1) textScale = 1;
+        } else if (animPreset === "zoom_in" || animPreset === "zoom_blur_blast" || animPreset === "snap_zoom") {
+          textOpacity = animProgress;
+          textScale = 0.2 + animProgress * 0.8;
+        } else if (animPreset === "zoom_out") {
+          textOpacity = animProgress;
+          textScale = 1.8 - animProgress * 0.8;
+        } else if (animPreset === "pulsing_scale") {
+          textScale = 1 + Math.sin(currTime * 8) * 0.08;
+        } else if (animPreset === "rotate_spin_in" || animPreset === "barrel_roll") {
+          textOpacity = animProgress;
+          textScale = 0.3 + animProgress * 0.7;
+          textRotation = (1 - animProgress) * 360;
+        } else if (animPreset === "flip_x" || animPreset === "skew_twist") {
+          textOpacity = animProgress;
+          textScale = Math.sin(animProgress * Math.PI * 0.5);
+        } else if (animPreset === "glow" || animPreset === "neon_pink" || animPreset === "glow_pulse" || animPreset === "electric_spark" || animPreset === "matrix_green" || animPreset === "fire_ember") {
+          ctx.shadowColor = (clip.style?.shadowColor as string) || "#f59e0b";
+          ctx.shadowBlur = Math.round(18 * Math.abs(Math.sin(currTime * 5)) + 6);
+        } else if (animPreset === "typewriter") {
+          const totalChars = clip.text.length;
+          const visibleCount = Math.floor(animProgress * totalChars);
+          displayText = clip.text.substring(0, visibleCount);
+        } else {
+          // Default smooth pop
+          textOpacity = Math.min(1, animProgress * 1.2);
+          textScale = 0.85 + animProgress * 0.15;
+        }
+
+        const isBoldStyle = clip.style?.isBold !== undefined ? Boolean(clip.style.isBold) : true;
+        const isItalicStyle = Boolean(clip.style?.isItalic);
+        const isUnderlineStyle = Boolean(clip.style?.isUnderline);
+        const fontFamilyStyle = (clip.style?.fontFamily as string) || "system-ui, -apple-system, sans-serif";
+
+        const fontPrefix = `${isItalicStyle ? "italic " : ""}${isBoldStyle ? "bold " : ""}`;
+
+        ctx.globalAlpha = textOpacity;
+        ctx.font = `${fontPrefix}${Math.round(baseFontSize * textScale)}px ${fontFamilyStyle}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        const maxTextWidth = width * 0.82; // batas lebar maksimal teks di canvas (82% lebar canvas)
+
+        // Algoritma Word Wrapping Otomatis
+        const words = (displayText || "").split(" ");
+        const lines: string[] = [];
+        let currentLine = "";
+
+        for (const word of words) {
+          const testLine = currentLine ? `${currentLine} ${word}` : word;
+          const testWidth = ctx.measureText(testLine).width;
+          if (testWidth > maxTextWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+
+        // Ukur dimensi box latar belakang subtitle
+        let widestLine = 0;
+        for (const line of lines) {
+          const w = ctx.measureText(line).width;
+          if (w > widestLine) widestLine = w;
+        }
+
+        const boxPaddingX = Math.round(baseFontSize * 0.8);
+        const boxPaddingY = Math.round(baseFontSize * 0.45);
+        const totalTextHeight = lines.length * lineHeight;
+        const totalBoxWidth = widestLine + boxPaddingX * 2;
+        const totalBoxHeight = totalTextHeight + boxPaddingY * 2;
+
+        const boxBottomMargin = Math.round(height * 0.05);
+        const boxY = height - boxBottomMargin - totalBoxHeight + textOffsetY;
+        const boxX = (width - totalBoxWidth) / 2 + textOffsetX;
+
+        if (textRotation) {
+          ctx.translate(boxX + totalBoxWidth / 2, boxY + totalBoxHeight / 2);
+          ctx.rotate((textRotation * Math.PI) / 180);
+          ctx.translate(-(boxX + totalBoxWidth / 2), -(boxY + totalBoxHeight / 2));
+        }
+
+        // Gambar background box
+        if (bgColor !== "rgba(0,0,0,0)" && bgColor !== "transparent") {
+          ctx.fillStyle = bgColor;
+          if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(boxX, boxY, totalBoxWidth, totalBoxHeight, 8);
+            ctx.fill();
+          } else {
+            ctx.fillRect(boxX, boxY, totalBoxWidth, totalBoxHeight);
           }
         }
 
-        ctx.save();
-        ctx.font = "bold 26px system-ui, -apple-system, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
+        // Gambar teks per baris yang sudah di-wrap
+        ctx.fillStyle = fontColor;
+        let startTextY = boxY + boxPaddingY + lineHeight / 2;
+        for (const line of lines) {
+          const textX = boxX + totalBoxWidth / 2;
+          ctx.fillText(line, textX, startTextY);
 
-        const text = clip.text;
-        const textMetrics = ctx.measureText(text);
-        const textWidth = textMetrics.width;
-        const boxPadding = 16;
-        const boxHeight = 44;
-        const boxY = height - 44;
-        const boxX = width / 2 - textWidth / 2 - boxPadding;
+          // Gambar garis bawah jika isUnderline aktif
+          if (isUnderlineStyle) {
+            const lineWidth = ctx.measureText(line).width;
+            const underlineY = startTextY + baseFontSize * 0.45;
+            ctx.save();
+            ctx.strokeStyle = fontColor;
+            ctx.lineWidth = Math.max(2, Math.round(baseFontSize * 0.08));
+            ctx.beginPath();
+            ctx.moveTo(textX - lineWidth / 2, underlineY);
+            ctx.lineTo(textX + lineWidth / 2, underlineY);
+            ctx.stroke();
+            ctx.restore();
+          }
 
-        ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
-        if (ctx.roundRect) {
-          ctx.beginPath();
-          ctx.roundRect(boxX, boxY - boxHeight + 8, textWidth + boxPadding * 2, boxHeight, 8);
-          ctx.fill();
-        } else {
-          ctx.fillRect(boxX, boxY - boxHeight + 8, textWidth + boxPadding * 2, boxHeight);
+          startTextY += lineHeight;
         }
 
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(text, width / 2, boxY);
         ctx.restore();
       }
     }
-  }, [currentTime, duration, tracks, isPlaying, getMediaElement, aspectRatio]);
+  }, [getMediaElement, aspectRatio]);
 
   const drawTransformedMedia = (
     ctx: CanvasRenderingContext2D,
     media: HTMLImageElement | HTMLVideoElement,
     clip: Clip,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
+    currentTime: number
   ) => {
     const transform = clip.transform || { scale: 1, x: 0, y: 0, rotation: 0 };
     const chroma = clip.chroma_key;
 
-    const cx = canvasWidth / 2 + transform.x;
-    const cy = canvasHeight / 2 + transform.y;
+    // Kalkulasi Transisi Masuk (Transition In) & Transisi Keluar (Transition Out)
+    const tIn = clip.transition_in || { type: "none", duration: 0.5 };
+    const tOut = clip.transition_out || { type: "none", duration: 0.5 };
+    const durIn = tIn.duration || 0.5;
+    const durOut = tOut.duration || 0.5;
+
+    let transOpacity = 1;
+    let transOffsetX = 0;
+    let transOffsetY = 0;
+    let transScale = 1;
+    let transRotation = 0;
+
+    // Transisi Masuk (In)
+    if (tIn.type && tIn.type !== "none") {
+      const timeSinceStart = currentTime - clip.start;
+      if (timeSinceStart >= 0 && timeSinceStart < durIn) {
+        const progress = Math.min(1, Math.max(0, timeSinceStart / durIn));
+        if (tIn.type === "morph") {
+          // Efek Morph: perpaduan zoom warp elastis + sedikit putaran rotasi + fade cross-blend
+          transOpacity = Math.min(1, progress * 1.4);
+          transScale = 0.6 + Math.sin(progress * Math.PI * 0.5) * 0.4;
+          transRotation = (1 - progress) * 8; // rotasi halus 8 derajat menuju tegak
+        } else if (tIn.type === "fade_in" || tIn.type === "cross_dissolve") {
+          transOpacity = progress;
+        } else if (tIn.type === "slide_left") {
+          transOffsetX = (1 - progress) * canvasWidth;
+        } else if (tIn.type === "slide_right") {
+          transOffsetX = -(1 - progress) * canvasWidth;
+        } else if (tIn.type === "slide_up") {
+          transOffsetY = (1 - progress) * canvasHeight;
+        } else if (tIn.type === "slide_down") {
+          transOffsetY = -(1 - progress) * canvasHeight;
+        } else if (tIn.type === "zoom_in") {
+          transOpacity = progress;
+          transScale = 0.3 + progress * 0.7;
+        } else if (tIn.type === "zoom_out") {
+          transOpacity = progress;
+          transScale = 1.7 - progress * 0.7;
+        } else if (tIn.type === "wipe_left") {
+          transOpacity = progress;
+          transOffsetX = (1 - progress) * (canvasWidth * 0.5);
+        }
+      }
+    }
+
+    // Transisi Keluar (Out)
+    if (tOut.type && tOut.type !== "none") {
+      const timeUntilEnd = clip.end - currentTime;
+      if (timeUntilEnd >= 0 && timeUntilEnd < durOut) {
+        const progress = Math.min(1, Math.max(0, timeUntilEnd / durOut)); // 1 -> 0 saat mendekati akhir
+        if (tOut.type === "morph") {
+          // Efek Morph Keluar: melembut membesar (warp forward) + fade out
+          transOpacity = Math.min(transOpacity, progress * 1.3);
+          transScale = transScale * (1 + (1 - progress) * 0.45);
+          transRotation = (1 - progress) * -8;
+        } else if (tOut.type === "fade_out" || tOut.type === "cross_dissolve") {
+          transOpacity = Math.min(transOpacity, progress);
+        } else if (tOut.type === "slide_left") {
+          transOffsetX = -(1 - progress) * canvasWidth;
+        } else if (tOut.type === "slide_right") {
+          transOffsetX = (1 - progress) * canvasWidth;
+        } else if (tOut.type === "slide_up") {
+          transOffsetY = -(1 - progress) * canvasHeight;
+        } else if (tOut.type === "slide_down") {
+          transOffsetY = (1 - progress) * canvasHeight;
+        } else if (tOut.type === "zoom_in") {
+          transOpacity = Math.min(transOpacity, progress);
+          transScale = 1 + (1 - progress) * 0.8;
+        } else if (tOut.type === "zoom_out") {
+          transOpacity = Math.min(transOpacity, progress);
+          transScale = Math.max(0.2, progress);
+        } else if (tOut.type === "wipe_right") {
+          transOpacity = Math.min(transOpacity, progress);
+          transOffsetX = (1 - progress) * (canvasWidth * 0.5);
+        }
+      }
+    }
+
+    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity));
+
+    const cx = canvasWidth / 2 + transform.x + transOffsetX;
+    const cy = canvasHeight / 2 + transform.y + transOffsetY;
 
     ctx.translate(cx, cy);
-    if (transform.rotation) {
-      ctx.rotate((transform.rotation * Math.PI) / 180);
+    const finalRotation = transform.rotation + transRotation;
+    if (finalRotation) {
+      ctx.rotate((finalRotation * Math.PI) / 180);
     }
-    ctx.scale(transform.scale, transform.scale);
+    const finalScale = transform.scale * transScale;
+    ctx.scale(finalScale, finalScale);
 
     const mWidth = (media as HTMLVideoElement).videoWidth || (media as HTMLImageElement).naturalWidth || canvasWidth;
     const mHeight = (media as HTMLVideoElement).videoHeight || (media as HTMLImageElement).naturalHeight || canvasHeight;
@@ -291,14 +579,22 @@ export default function CanvasPreview() {
     const drawW = mWidth * scale;
     const drawH = mHeight * scale;
 
-    if (chroma && chroma.enabled) {
-      const offscreen = document.createElement("canvas");
-      offscreen.width = drawW;
-      offscreen.height = drawH;
-      const offCtx = offscreen.getContext("2d");
+    if (chroma && chroma.enabled && media instanceof HTMLImageElement) {
+      if (!chromaCanvasRef.current) {
+        chromaCanvasRef.current = document.createElement("canvas");
+      }
+      const offscreen = chromaCanvasRef.current;
+      const targetW = Math.max(1, Math.round(drawW));
+      const targetH = Math.max(1, Math.round(drawH));
+      if (offscreen.width !== targetW || offscreen.height !== targetH) {
+        offscreen.width = targetW;
+        offscreen.height = targetH;
+      }
+      const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
       if (offCtx) {
-        offCtx.drawImage(media, 0, 0, drawW, drawH);
-        const imgData = offCtx.getImageData(0, 0, drawW, drawH);
+        offCtx.clearRect(0, 0, targetW, targetH);
+        offCtx.drawImage(media, 0, 0, targetW, targetH);
+        const imgData = offCtx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
 
         const hex = chroma.color.replace("#", "");
@@ -325,9 +621,25 @@ export default function CanvasPreview() {
     }
   };
 
+  // Hitung batas waktu klip paling akhir di seluruh track timeline (efektif durasi konten)
+  const getContentEndTime = useCallback(() => {
+    let maxEnd = 0;
+    const currentTracks = tracksRef.current;
+    for (const t of currentTracks) {
+      for (const c of t.clips) {
+        if (c.end > maxEnd) {
+          maxEnd = c.end;
+        }
+      }
+    }
+    // Jika ada klip di timeline, gunakan titik akhir klip terakhir. Jika kosong, gunakan default duration.
+    return maxEnd > 0 ? maxEnd : duration;
+  }, [duration]);
+
   useEffect(() => {
     let animId: number;
     lastTimeRef.current = performance.now();
+    let lastStoreSync = 0;
 
     const tick = (now: number) => {
       const deltaSec = Math.min((now - lastTimeRef.current) / 1000, 0.1);
@@ -335,14 +647,29 @@ export default function CanvasPreview() {
 
       if (isPlayingRef.current) {
         const nextTime = currentTimeRef.current + deltaSec;
-        if (nextTime >= duration) {
-          currentTimeRef.current = 0;
-          setCurrentTime(0);
+        const effectiveEndTime = getContentEndTime();
+
+        // Berhenti tepat saat playhead mencapai titik akhir klip paling kanan di timeline
+        if (nextTime >= effectiveEndTime) {
+          currentTimeRef.current = effectiveEndTime;
+          setCurrentTime(effectiveEndTime);
           setIsPlaying(false);
           isPlayingRef.current = false;
+          if (timeDisplayRef.current) {
+            timeDisplayRef.current.textContent = formatTime(effectiveEndTime);
+          }
         } else {
           currentTimeRef.current = nextTime;
-          setCurrentTime(nextTime);
+          // Update teks time monitor langsung ke DOM tanpa re-render React
+          if (timeDisplayRef.current) {
+            timeDisplayRef.current.textContent = formatTime(nextTime);
+          }
+          // Throttle pengiriman update state ke Zustand Store setiap ~150ms
+          // Ini mencegah re-render komponen React lain yang membuat audio/video tersendat
+          if (now - lastStoreSync > 150) {
+            lastStoreSync = now;
+            setCurrentTime(nextTime);
+          }
         }
       }
 
@@ -352,7 +679,7 @@ export default function CanvasPreview() {
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [duration, renderFrame, setCurrentTime]);
+  }, [duration, getContentEndTime, renderFrame, setCurrentTime, setIsPlaying]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -454,7 +781,7 @@ export default function CanvasPreview() {
         </div>
 
         <div className="flex items-center gap-2 font-mono text-[11px]">
-          <span className="text-cyan-400 font-bold">{formatTime(currentTime)}</span>
+          <span ref={timeDisplayRef} className="text-cyan-400 font-bold">{formatTime(currentTime)}</span>
           <span className="text-gray-600">/</span>
           <span className="text-gray-400">{formatTime(duration)}</span>
         </div>

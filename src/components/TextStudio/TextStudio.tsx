@@ -109,6 +109,90 @@ export default function TextStudio() {
     <div className="flex flex-col h-full text-xs text-gray-200">
       {/* Header & Quick Text Editor Input */}
       <div className="space-y-2 mb-2.5 shrink-0 select-none">
+        {/* Custom Text Area Input */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] text-gray-400">
+            <span>✏️ Ketik Teks Custom Anda:</span>
+            {customText && (
+              <button
+                onClick={() => setCustomText("")}
+                className="text-[10px] text-gray-500 hover:text-red-400"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <textarea
+            value={customText}
+            onChange={(e) => setCustomText(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder="Tulis kalimat kustom di sini (atau gunakan teks bawaan preset)..."
+            rows={2}
+            className="w-full px-2.5 py-1.5 bg-[#0e1014] border border-[#232733] rounded-lg text-gray-200 text-xs focus:border-cyan-500 focus:outline-none resize-none font-sans"
+          />
+        </div>
+
+        {/* Toolbar Tipografi & Font OS */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-[#12141a] border border-[#232733] rounded-lg">
+          {/* Dropdown Font Family */}
+          <div className="flex items-center gap-1 flex-1 min-w-[140px]">
+            <select
+              value={fontFamily}
+              onChange={(e) => setFontFamily(e.target.value)}
+              className="w-full bg-[#1b1e28] border border-gray-700/70 text-gray-200 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-cyan-500"
+            >
+              {osFontList.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            {!hasScannedOsFonts && (
+              <button
+                type="button"
+                onClick={handleScanLocalFonts}
+                className="px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] shrink-0 border border-gray-700"
+                title="Pindai seluruh font yang terinstall di sistem operasi komputer Anda"
+              >
+                🔄 Scan OS
+              </button>
+            )}
+          </div>
+
+          {/* Toggle Gaya Huruf (B, I, U) */}
+          <div className="flex items-center gap-0.5 shrink-0 bg-[#1b1e28] p-0.5 rounded border border-gray-700/70">
+            <button
+              type="button"
+              onClick={() => setIsBold(!isBold)}
+              className={`w-6 h-6 flex items-center justify-center font-bold text-xs rounded transition-colors ${
+                isBold ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+              }`}
+              title="Tebal (Bold)"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsItalic(!isItalic)}
+              className={`w-6 h-6 flex items-center justify-center italic text-xs rounded transition-colors font-serif ${
+                isItalic ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+              }`}
+              title="Miring (Italic)"
+            >
+              I
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsUnderline(!isUnderline)}
+              className={`w-6 h-6 flex items-center justify-center underline text-xs rounded transition-colors ${
+                isUnderline ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+              }`}
+              title="Garis Bawah (Underline)"
+            >
+              U
+            </button>
+          </div>
+        </div>
 
         {/* Search Input */}
         <div className="flex items-center gap-1.5">

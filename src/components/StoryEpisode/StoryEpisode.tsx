@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 import { fileToDataUrl, optimizeImageToDataUrl } from "../../services/persistentMedia";
 import GeminiGeneratorModal from "../GeminiFlow/GeminiGeneratorModal";
+import ScriptImportModal from "./ScriptImportModal";
 
 export default function StoryEpisode() {
   const episodes = useProjectStore((s) => s.episodes);
@@ -31,6 +32,9 @@ export default function StoryEpisode() {
     sceneId: string;
     mode: "image" | "video";
   } | null>(null);
+
+  // State Modal Smart Script Importer
+  const [showScriptImportModal, setShowScriptImportModal] = useState(false);
 
   // Ref untuk file input upload image / video
   const sceneFileInputRef = useRef<HTMLInputElement>(null);
@@ -217,15 +221,24 @@ export default function StoryEpisode() {
           <h3 className="font-semibold text-gray-200">📝 Episode & Naskah</h3>
           <p className="text-[10px] text-gray-400">{episodes.length} Episode Tersedia</p>
         </div>
-        <button
-          onClick={() => {
-            const newId = addEpisode();
-            setSelectedEpId(newId);
-          }}
-          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition-colors"
-        >
-          + Episode
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowScriptImportModal(true)}
+            className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded font-medium text-xs flex items-center gap-1 shadow-md transition-all"
+            title="Import naskah skenario teks secara otomatis (Prolog, Karakter, Dialog)"
+          >
+            <span>✨</span> Auto Script
+          </button>
+          <button
+            onClick={() => {
+              const newId = addEpisode();
+              setSelectedEpId(newId);
+            }}
+            className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded font-medium text-xs transition-colors"
+          >
+            + Episode
+          </button>
+        </div>
       </div>
 
       {/* List Episode (Horizontal Tabs) */}
@@ -687,6 +700,16 @@ export default function StoryEpisode() {
               media_type: "video",
             });
             setGeminiModalTarget(null);
+          }}
+        />
+      )}
+
+      {/* Modal Smart Script-to-Video Importer */}
+      {showScriptImportModal && (
+        <ScriptImportModal
+          onClose={() => setShowScriptImportModal(false)}
+          onImportComplete={(newEpId) => {
+            setSelectedEpId(newEpId);
           }}
         />
       )}

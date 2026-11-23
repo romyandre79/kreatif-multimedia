@@ -470,3 +470,44 @@ Menggunakan **Command Pattern** pada state timeline:
 3. `Ctrl+Z` → pop dari `undoStack`, panggil `undo()`, push ke `redoStack`.
 4. `Ctrl+Shift+Z` / `Ctrl+Y` → pop dari `redoStack`, panggil `execute()`, push ke `undoStack`.
 5. Saat user melakukan aksi baru, `redoStack` dikosongkan.
+
+---
+
+## 8. Smart Script Importer & Auto-Generation Pipeline
+
+Mekanisme otomatisasi pengolahan naskah mentah skenario/cerita menjadi rangkaian adegan multi-track:
+
+```
+[ Naskah Mentah Pengguna ]
+           |
+           v
+[ Script Parser Engine (src/services/scriptParser.ts) ]
+  • Judul Episode : Mendeteksi "Episode X ..." / "Judul ..."
+  • Prolog/Narasi : Memetakan "Prolog:" / "Narasi:" ke Voice-Over (Narator)
+  • Dialog Tokoh  : Memetakan "Nama : Ucapan" ke Karakter
+  • Multi-Speaker : Membagi "Hima, Aline : ..." ke karakter bersama
+  • Action Notes  : Menyaring "(ekspresi)" & petunjuk adegan dari pembacaan TTS
+           |
+           v
+[ Script Import Modal (src/components/StoryEpisode/ScriptImportModal.tsx) ]
+  • Auto-create profil karakter baru yang belum terdaftar di projectStore
+  • Batch scene generation ke target Episode
+  • Opsional: Batch Voice Synthesis (ElevenLabs / Piper Local TTS)
+  • Smart Placement: Insert langsung ke Multi-Track Timeline (Audio + Visual + Subtitle)
+```
+
+---
+
+## 9. Text Studio & Typography Engine
+
+Sistem tipografi dan animasi teks tingkat lanjut untuk overlay/subtitle:
+
+1. **Preset Engine (`src/services/textAnimationPresets.ts`)**:
+   - 55 preset animasi siap pakai (Fade, Slide, Zoom, Bounce, Rotate, Glitch, Cinematic, Typewriter).
+   - Parameter konfigurasi: durasi animasi, kurva easing, loop, dan style preset.
+2. **OS Local Font Access (`src/services/systemFonts.ts`)**:
+   - Memanfaatkan browser Web `window.queryLocalFonts()` untuk memindai font sistem operasi lokal (Windows, macOS, Linux).
+   - Fallback kurasi font sistem standar jika browser tidak mengizinkan permission.
+3. **Typography Toolbar**:
+   - Kontrol Font Family, Bold, Italic, Underline, Ukuran, Warna, dan Background Banner.
+   - Sinkronisasi instan ke WebGL Canvas Preview dan Final FFmpeg/Canvas Exporter.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 import {
   TEXT_ANIMATION_PRESETS,
@@ -8,6 +8,13 @@ import {
   COMMON_SYSTEM_FONTS,
   getOperatingSystemFonts,
 } from "../../services/systemFonts";
+import {
+  CustomTextAnimationConfig,
+  getCustomTextAnimations,
+  deleteCustomTextAnimation,
+} from "../../services/customTextAnimation";
+import CustomTextAnimationModal from "./CustomTextAnimationModal";
+import FontDropdownPicker from "./FontDropdownPicker";
 
 export default function TextStudio() {
   const tracks = useProjectStore((s) => s.timeline.tracks);
@@ -27,22 +34,36 @@ export default function TextStudio() {
 
   // Daftar Font Sistem Operasi
   const [osFontList, setOsFontList] = useState<{ label: string; value: string }[]>(COMMON_SYSTEM_FONTS);
-  const [hasScannedOsFonts, setHasScannedOsFonts] = useState<boolean>(false);
 
-  // Ambil font OS lokal
-  const handleScanLocalFonts = async () => {
-    try {
-      const fonts = await getOperatingSystemFonts();
-      setOsFontList(fonts);
-      setHasScannedOsFonts(true);
-    } catch (err) {
-      console.warn("Gagal scan font OS:", err);
-    }
+  // Custom User Animations
+  const [customAnimations, setCustomAnimations] = useState<CustomTextAnimationConfig[]>([]);
+  const [showCustomModal, setShowCustomModal] = useState<boolean>(false);
+  const [editingCustomAnim, setEditingCustomAnim] = useState<CustomTextAnimationConfig | null>(null);
+
+  // Otomatis ambil font sistem operasi dan custom animations saat komponen dimuat
+  useEffect(() => {
+    setCustomAnimations(getCustomTextAnimations());
+
+    // Ambil langsung font OS lokal di background
+    getOperatingSystemFonts()
+      .then((fonts) => {
+        if (fonts && fonts.length > 0) {
+          setOsFontList(fonts);
+        }
+      })
+      .catch((err) => {
+        console.warn("Auto-load font OS:", err);
+      });
+  }, []);
+
+  const reloadCustomAnimations = () => {
+    setCustomAnimations(getCustomTextAnimations());
   };
 
   // Filter kategori
   const categories = [
-    { id: "all", label: "✨ Semua (55)" },
+    { id: "all", label: `✨ Semua (${55 + customAnimations.length})` },
+    { id: "custom", label: `🪄 Buatan Saya (${customAnimations.length})` },
     { id: "fade", label: "🌫️ Fade & Dissolve" },
     { id: "slide", label: "⬆️ Slide & Move" },
     { id: "zoom", label: "🔍 Zoom & Pop" },
@@ -53,7 +74,22 @@ export default function TextStudio() {
     { id: "creative", label: "📱 Viral & Media" },
   ];
 
-  const filteredPresets = TEXT_ANIMATION_PRESETS.filter((p) => {
+  // Gabungkan preset bawaan dengan animasi kustom
+  const allAvailablePresets: TextAnimationPreset[] = [
+    ...customAnimations.map((ca) => ({
+      id: ca.id,
+      name: ca.name,
+      category: "custom" as any,
+      description: ca.description || `Animasi kustom ${ca.motion}`,
+      defaultText: "Teks Animasi Kustom",
+      duration: ca.duration || 0.6,
+      previewIcon: ca.previewIcon || "🪄",
+      style: ca.style || {},
+    })),
+    ...TEXT_ANIMATION_PRESETS,
+  ];
+
+  const filteredPresets = allAvailablePresets.filter((p) => {
     const matchCategory = activeCategory === "all" || p.category === activeCategory;
     const matchQuery =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -134,29 +170,13 @@ export default function TextStudio() {
 
         {/* Toolbar Tipografi & Font OS */}
         <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-[#12141a] border border-[#232733] rounded-lg">
-          {/* Dropdown Font Family */}
-          <div className="flex items-center gap-1 flex-1 min-w-[140px]">
-            <select
+          {/* Custom Font Picker dengan Live Bentuk Font */}
+          <div className="flex-1 min-w-[150px]">
+            <FontDropdownPicker
               value={fontFamily}
-              onChange={(e) => setFontFamily(e.target.value)}
-              className="w-full bg-[#1b1e28] border border-gray-700/70 text-gray-200 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-cyan-500"
-            >
-              {osFontList.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-            {!hasScannedOsFonts && (
-              <button
-                type="button"
-                onClick={handleScanLocalFonts}
-                className="px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] shrink-0 border border-gray-700"
-                title="Pindai seluruh font yang terinstall di sistem operasi komputer Anda"
-              >
-                🔄 Scan OS
-              </button>
-            )}
+              options={osFontList}
+              onChange={(val) => setFontFamily(val)}
+            />
           </div>
 
           {/* Toggle Gaya Huruf (B, I, U) */}
@@ -194,7 +214,7 @@ export default function TextStudio() {
           </div>
         </div>
 
-        {/* Search Input */}
+        {/* Search Input & Button Buat Animasi Baru */}
         <div className="flex items-center gap-1.5">
           <input
             type="text"
@@ -203,8 +223,19 @@ export default function TextStudio() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 px-2.5 py-1.5 bg-[#0e1014] border border-[#232733] rounded-lg text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
           />
-          <span className="px-2 py-1.5 bg-[#181a22] border border-[#252834] rounded-lg text-[10px] font-mono text-cyan-400">
-            {filteredPresets.length} Preset
+          <button
+            type="button"
+            onClick={() => {
+              setEditingCustomAnim(null);
+              setShowCustomModal(true);
+            }}
+            className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-md transition-all shrink-0"
+            title="Buat animasi teks kustom Anda sendiri (atur arah geser, zoom, rotate, bounce, durasi)"
+          >
+            <span>🪄</span> + Animasi Sendiri
+          </button>
+          <span className="px-2 py-1.5 bg-[#181a22] border border-[#252834] rounded-lg text-[10px] font-mono text-cyan-400 shrink-0">
+            {filteredPresets.length}
           </span>
         </div>
 
@@ -286,21 +317,51 @@ export default function TextStudio() {
                   </span>
                 </div>
 
-                {/* Actions: Insert into Timeline */}
+                {/* Actions: Insert into Timeline & Custom Action Controls */}
                 <div className="flex items-center gap-1.5 pt-1 border-t border-[#1b1e28]">
                   <button
                     onClick={() => handleInsertTextToTimeline(preset)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white text-[11px] font-semibold transition-all shadow-sm shadow-cyan-950/40 flex items-center justify-center gap-1.5"
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white text-[11px] font-semibold transition-all shadow-sm shadow-cyan-950/40 flex items-center justify-center gap-1.5"
                   >
                     <span>➕</span>
                     <span>Insert ke Timeline</span>
                   </button>
+
+                  {/* Tombol Hapus jika ini animasi kustom buatan user */}
+                  {preset.category === "custom" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Hapus animasi "${preset.name}"?`)) {
+                          deleteCustomTextAnimation(preset.id);
+                          reloadCustomAnimations();
+                        }
+                      }}
+                      className="p-1.5 bg-[#1a1c24] hover:bg-red-950/80 hover:text-red-300 border border-gray-700/60 rounded-lg text-gray-400 text-xs transition-colors"
+                      title="Hapus animasi kustom ini"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Modal Custom Text Animation Builder */}
+      {showCustomModal && (
+        <CustomTextAnimationModal
+          initialConfig={editingCustomAnim}
+          onClose={() => setShowCustomModal(false)}
+          onSaved={() => {
+            reloadCustomAnimations();
+            setActiveCategory("custom");
+          }}
+        />
+      )}
     </div>
   );
 }

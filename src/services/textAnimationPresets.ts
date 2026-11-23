@@ -1,7 +1,7 @@
 export interface TextAnimationPreset {
   id: string;
   name: string;
-  category: "fade" | "slide" | "zoom" | "bounce" | "rotate" | "creative" | "glow" | "cinema";
+  category: "custom" | "fade" | "slide" | "zoom" | "bounce" | "rotate" | "creative" | "glow" | "cinema";
   description: string;
   defaultText: string;
   duration: number;

@@ -1,4 +1,6 @@
 import { Track, Clip } from "../stores/projectStore";
+import { interpolateKeyframes } from "./keyframe";
+import { getCustomTextAnimations, evaluateCustomTextAnimation } from "./customTextAnimation";
 
 export interface VideoExportOptions {
   projectName: string;
@@ -290,7 +292,28 @@ export async function renderAndExportVideo(
     clip: Clip,
     currentTime: number
   ) => {
-    const transform = clip.transform || { scale: 1, x: 0, y: 0, rotation: 0 };
+    // 1. Ambil nilai dasar transform & opacity
+    const baseTransform = clip.transform || { scale: 1, x: 0, y: 0, rotation: 0 };
+    const baseOpacity = clip.opacity !== undefined ? clip.opacity : 1;
+
+    // 2. Evaluasi interpolasi Keyframe jika ada
+    const relativeTime = currentTime - clip.start;
+    const keyframedProps = interpolateKeyframes(clip.keyframes, relativeTime, {
+      x: baseTransform.x,
+      y: baseTransform.y,
+      scale: baseTransform.scale,
+      rotation: baseTransform.rotation,
+      opacity: baseOpacity,
+    });
+
+    const transform = {
+      x: keyframedProps.x !== undefined ? keyframedProps.x : baseTransform.x,
+      y: keyframedProps.y !== undefined ? keyframedProps.y : baseTransform.y,
+      scale: keyframedProps.scale !== undefined ? keyframedProps.scale : baseTransform.scale,
+      rotation: keyframedProps.rotation !== undefined ? keyframedProps.rotation : baseTransform.rotation,
+    };
+    const keyframeOpacity = keyframedProps.opacity !== undefined ? keyframedProps.opacity : baseOpacity;
+
     const chroma = clip.chroma_key;
 
     // Kalkulasi Transisi Masuk (Transition In) & Transisi Keluar (Transition Out)
@@ -375,7 +398,7 @@ export async function renderAndExportVideo(
     const cy = height / 2 + transform.y + transOffsetY;
 
     ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity));
+    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity * keyframeOpacity));
     ctx.translate(cx, cy);
     const finalRotation = transform.rotation + transRotation;
     if (finalRotation) {
@@ -528,7 +551,31 @@ export async function renderAndExportVideo(
           ctx.shadowBlur = (clip.style.shadowBlur as number) || 12;
         }
 
-        if (animPreset === "fade" || animPreset === "fade_blur" || animPreset === "fade_slow" || animPreset === "fade_black_box" || animPreset === "fade_gold" || animPreset === "fade_minimalist") {
+        // Cek apakah animasi teks ini merupakan Custom Text Animation buatan user
+        const customAnimations = getCustomTextAnimations();
+        const customAnim = customAnimations.find((ca) => ca.id === animPreset);
+
+        if (customAnim) {
+          const evalRes = evaluateCustomTextAnimation(
+            customAnim,
+            timeSinceStart,
+            width,
+            baseFontSize,
+            clip.text.length,
+            currentTime
+          );
+          textOpacity = evalRes.opacity;
+          textScale = evalRes.scaleX;
+          textOffsetX = evalRes.offsetX;
+          textOffsetY = evalRes.offsetY;
+          textRotation = evalRes.rotation;
+          if (evalRes.shadowBlurBonus > 0) {
+            ctx.shadowBlur = ((clip.style?.shadowBlur as number) || 12) + evalRes.shadowBlurBonus;
+          }
+          if (evalRes.visibleCharsCount !== undefined) {
+            displayText = clip.text.substring(0, evalRes.visibleCharsCount);
+          }
+        } else if (animPreset === "fade" || animPreset === "fade_blur" || animPreset === "fade_slow" || animPreset === "fade_black_box" || animPreset === "fade_gold" || animPreset === "fade_minimalist") {
           textOpacity = animProgress;
         } else if (animPreset === "fade_flash") {
           textOpacity = animProgress < 0.3 ? 0.3 + animProgress * 2.3 : 1;

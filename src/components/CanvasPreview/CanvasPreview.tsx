@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useProjectStore, Clip, Track } from "../../stores/projectStore";
+import { interpolateKeyframes } from "../../services/keyframe";
+import { getCustomTextAnimations, evaluateCustomTextAnimation } from "../../services/customTextAnimation";
 
 export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -178,11 +180,19 @@ export default function CanvasPreview() {
                   targetTime = targetTime % audioDuration;
                 }
 
+                // Evaluasi volume keyframe jika ada
+                let effectiveVolume = clip.volume ?? 1.0;
+                if (clip.keyframes && clip.keyframes.length > 0) {
+                  const relTime = currTime - clip.start;
+                  const kf = interpolateKeyframes(clip.keyframes, relTime, { volume: effectiveVolume });
+                  if (kf.volume !== undefined) effectiveVolume = kf.volume;
+                }
+                audio.volume = Math.max(0, Math.min(1, effectiveVolume));
+
                 if (!activeAudioClipsRef.current.has(clip.id)) {
                   // Mulai audio saat playhead memasuki klip ini
                   activeAudioClipsRef.current.add(clip.id);
                   audio.currentTime = Math.max(0, targetTime);
-                  audio.volume = clip.volume ?? 1.0;
                   audio.play().catch(() => {});
                 } else {
                   // Jika audio sudah berjalan tapi terhenti karena file habis sebelum klip selesai, putar ulang (loop)
@@ -192,7 +202,6 @@ export default function CanvasPreview() {
                   } else if (audio.paused && !audio.ended) {
                     audio.play().catch(() => {});
                   }
-                  audio.volume = clip.volume ?? 1.0;
                 }
               } else {
                 if (!audio.paused) {
@@ -318,7 +327,31 @@ export default function CanvasPreview() {
           ctx.shadowBlur = (clip.style.shadowBlur as number) || 12;
         }
 
-        if (animPreset === "fade" || animPreset === "fade_blur" || animPreset === "fade_slow" || animPreset === "fade_black_box" || animPreset === "fade_gold" || animPreset === "fade_minimalist") {
+        // Cek apakah animasi ini merupakan Custom Text Animation buatan user
+        const customAnimations = getCustomTextAnimations();
+        const customAnim = customAnimations.find((ca) => ca.id === animPreset);
+
+        if (customAnim) {
+          const evalRes = evaluateCustomTextAnimation(
+            customAnim,
+            timeSinceStart,
+            width,
+            baseFontSize,
+            clip.text.length,
+            currTime
+          );
+          textOpacity = evalRes.opacity;
+          textScale = evalRes.scaleX;
+          textOffsetX = evalRes.offsetX;
+          textOffsetY = evalRes.offsetY;
+          textRotation = evalRes.rotation;
+          if (evalRes.shadowBlurBonus > 0) {
+            ctx.shadowBlur = ((clip.style?.shadowBlur as number) || 12) + evalRes.shadowBlurBonus;
+          }
+          if (evalRes.visibleCharsCount !== undefined) {
+            displayText = clip.text.substring(0, evalRes.visibleCharsCount);
+          }
+        } else if (animPreset === "fade" || animPreset === "fade_blur" || animPreset === "fade_slow" || animPreset === "fade_black_box" || animPreset === "fade_gold" || animPreset === "fade_minimalist") {
           textOpacity = animProgress;
         } else if (animPreset === "fade_flash") {
           textOpacity = animProgress < 0.3 ? 0.3 + animProgress * 2.3 : 1;
@@ -478,7 +511,28 @@ export default function CanvasPreview() {
     canvasHeight: number,
     currentTime: number
   ) => {
-    const transform = clip.transform || { scale: 1, x: 0, y: 0, rotation: 0 };
+    // 1. Ambil nilai dasar transform & opacity
+    const baseTransform = clip.transform || { scale: 1, x: 0, y: 0, rotation: 0 };
+    const baseOpacity = clip.opacity !== undefined ? clip.opacity : 1;
+
+    // 2. Evaluasi interpolasi Keyframe jika ada
+    const relativeTime = currentTime - clip.start;
+    const keyframedProps = interpolateKeyframes(clip.keyframes, relativeTime, {
+      x: baseTransform.x,
+      y: baseTransform.y,
+      scale: baseTransform.scale,
+      rotation: baseTransform.rotation,
+      opacity: baseOpacity,
+    });
+
+    const transform = {
+      x: keyframedProps.x !== undefined ? keyframedProps.x : baseTransform.x,
+      y: keyframedProps.y !== undefined ? keyframedProps.y : baseTransform.y,
+      scale: keyframedProps.scale !== undefined ? keyframedProps.scale : baseTransform.scale,
+      rotation: keyframedProps.rotation !== undefined ? keyframedProps.rotation : baseTransform.rotation,
+    };
+    const keyframeOpacity = keyframedProps.opacity !== undefined ? keyframedProps.opacity : baseOpacity;
+
     const chroma = clip.chroma_key;
 
     // Kalkulasi Transisi Masuk (Transition In) & Transisi Keluar (Transition Out)
@@ -559,7 +613,7 @@ export default function CanvasPreview() {
       }
     }
 
-    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity));
+    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity * keyframeOpacity));
 
     const cx = canvasWidth / 2 + transform.x + transOffsetX;
     const cy = canvasHeight / 2 + transform.y + transOffsetY;

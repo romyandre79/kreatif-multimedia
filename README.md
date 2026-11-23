@@ -11,34 +11,60 @@ Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (W
 - Profiling & deskripsi karakter (bio, sifat, prompt style untuk konsistensi AI).
 - Pemilihan Voice ID / model TTS per karakter.
 
-### 2. Episode & Script Manager
+### 2. Episode, Script Manager & Smart Auto-Importer
 - Pembuatan skrip per episode & pembagian beat/scene.
+- **Smart Script-to-Video Importer (`Auto Script`)**:
+  - Otomatis mem-parsing naskah mentah skenario/cerita utuh (Title Episode, Dialog Karakter, Prolog/Narasi, dan Petunjuk Aksi/Visual).
+  - Ekstraksi multi-speaker dan auto-create profil karakter baru yang belum terdaftar.
+  - Pemisahan ekspresi akting dalam tanda kurung `(sambil berlagak sombong)` agar tidak dibaca oleh audio TTS.
+  - 1-Click Batch Voice Generation dan penyusunan instan seluruh adegan langsung ke Multi-Track Timeline (Audio, Visual, Subtitle).
 - Text-to-Speech otomatis (Lokal: Piper TTS/Kokoro, Cloud: ElevenLabs/OpenAI TTS).
 - Sinkronisasi instan naskah ke timeline audio & subtitle track.
 
-### 3. Multi-Track Timeline (NLE)
+### 3. Text Studio & Tipografi Lengkap (55+ Preset & Custom Builder)
+- **Custom Text Animation Builder**:
+  - **20 Pilihan Motion Type Masuk**: Fade, Slide Up/Down/Left/Right/Diagonal, Zoom In/Out, Heavy Bounce Drop, Elastic Spring Pop, Rotate CW/CCW, Flip Horizontal/Vertical, Typewriter, Glitch & Shake, Swing In (Pendulum), Spiral Vortex, Blur Reveal, Slam Zoom.
+  - **20 Pilihan Loop Animation Kontinu**: Gentle Pulse, Heartbeat, Floating Bobbing, Horizontal Drift, Slow/Fast Spin, Playful Wiggle, Jelly Squish, Shiver/Tremble, Pendulum, Ocean Wave, Neon Flicker, Strobe Flash, Glitch Twitch, Deep Breathing, Rainbow Cycle, Glow Halo, Circular Orbit, Trampoline Bounce.
+  - Live Interactive Preview Screen, penyesuaian kurva easing, kecepatan loop, dan styling glow/bayangan kustom.
+- **55 Preset Animasi Teks Bawaan Siap Pakai**: Fade, Slide, Zoom, Bounce, Rotate, Glitch, Cinematic, Typewriter, Pop-up, dll.
+- **Dukungan Font Sistem Operasi (OS Fonts)**: Integrasi Web Local Font Access API untuk membaca dan menggunakan seluruh jenis huruf yang terpasang di komputer pengguna (Windows, macOS, Linux).
+- **Format Tipografi Lengkap**: Bold (Tebal), Italic (Miring), Underline (Garis Bawah), Font Size, Text Color, Background Banner, & Shadow.
+- **Live Preview & Animation Loop**: Pratinjau animasi teks dan loop replay interaktif pada editor modal.
+
+### 4. Audio Vault & SFX Integration
+- **Freesound.org Integration**: Pencarian dan unduh jutaan Sound Effect (SFX) / foley langsung dari aplikasi.
+- **BGM & Voice Library**: Manajemen suara narasi, background music, dan instan drag-and-drop ke timeline.
+
+### 5. Multi-Track Timeline (NLE) & Keyframe Animation
 - Trek multi-layer: Video, Gambar, Teks/Subtitle, dan Audio (Voice, BGM, SFX).
+- **Keyframe Animator Terintegrasi (◆ Diamond Points)**:
+  - Penambahan & penghapusan titik keyframe dinamis pada detik tertentu di klip.
+  - Animasi halus multi-parameter: **Position X, Position Y, Scale (Zoom in/out), Rotation, Opacity (Alpha/Fade), dan Audio Volume (Ducking/Fade)**.
+  - Kurva interpolasi halus (Linear, Ease-In, Ease-Out, Ease-InOut).
+  - Tampilan visual diamond marker langsung di body klip timeline dan navigator titik di Inspector.
+  - Terintegrasi penuh ke Canvas Preview 60 FPS dan Final Video Exporter.
 - Trimming (in/out point), cutting, splitting, multi-layer snapping, dan scrubber.
 - **Transisi antar-klip**: Fade In/Out, Cross Dissolve, Wipe, Slide, dan custom transition.
 - **Undo/Redo**: Riwayat perubahan tak terbatas dengan keyboard shortcut (Ctrl+Z / Ctrl+Shift+Z).
+- **Auto-Stop Playback**: Playback otomatis berhenti tepat di batas akhir klip terakhir timeline.
 
-### 4. Interactive Canvas Preview
+### 6. Interactive Canvas Preview
 - Preview real-time 60 FPS bertenaga WebGL / Canvas.
 - Transformasi visual: Drag, resize, rotate, crop.
 - Pilihan rasio aspek canvas: **16:9** (Landscape), **9:16** (Shorts/Reels/TikTok), **1:1** (Instagram), **4:3**, **21:9** (Cinematic).
 - **Real-Time Chroma Keying**: Filter green/blue screen langsung di preview menggunakan WebGL shader.
 
-### 5. Media Import
+### 7. Media Import
 - **Video**: MP4, MOV, WebM, AVI, MKV.
 - **Gambar**: PNG, JPG/JPEG, GIF, WebP, SVG, BMP.
 - **Audio**: MP3, WAV, OGG, FLAC, AAC — import manual langsung ke track audio timeline (selain dari TTS).
 
-### 6. Hybrid AI Architecture
+### 8. Hybrid AI Architecture
 - **Lokal (Offline/Gratis)**: Whisper.cpp (Auto Subtitle), Piper TTS (Suara), SD WebUI / ComfyUI (Generasi Gambar/Video).
 - **Cloud API**: OpenAI, ElevenLabs, Fal.ai, Kling, Runway, Luma.
 - **AI Provider Manager**: Panel pengaturan untuk memilih dan mengkonfigurasi engine AI per fitur (TTS, Image Gen, Subtitle) — mudah beralih antara lokal dan cloud.
 
-### 7. Ekspor & Publikasi
+### 9. Ekspor & Publikasi
 - **Format output yang bisa dipilih**:
   - **MP4** (H.264 / H.265 — paling universal)
   - **WebM** (VP9 — ringan untuk web)
@@ -50,7 +76,7 @@ Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (W
 - Akselerasi hardware encoding: NVENC (Nvidia), VAAPI (Linux), VideoToolbox (macOS), QSV (Intel), AMF (AMD).
 - **Direct Upload**: YouTube API v3, TikTok Draft API, Google Drive OAuth.
 
-### 8. Proteksi Data & Kenyamanan
+### 10. Proteksi Data & Kenyamanan
 - **Auto-Save**: Proyek otomatis tersimpan setiap 60 detik dan saat ada perubahan penting (konfigurabel).
 - **Crash Recovery**: Saat aplikasi dibuka ulang setelah crash, proyek dikembalikan ke state terakhir yang tersimpan.
 - **Keyboard Shortcuts**: Shortcut standar editor profesional (Space = Play/Pause, S = Split, Delete = Hapus klip, Ctrl+Z = Undo, Ctrl+S = Save, dll.).

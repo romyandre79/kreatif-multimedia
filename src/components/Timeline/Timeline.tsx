@@ -581,7 +581,7 @@ export default function Timeline() {
                         />
 
                         {/* Clip Content */}
-                        <div className="flex-1 px-2 min-w-0 pointer-events-none truncate">
+                        <div className="flex-1 px-2 min-w-0 pointer-events-none truncate relative h-full flex flex-col justify-center">
                           <p className={`font-semibold truncate text-[11px] ${style.text}`}>
                             {clip.source?.split("/").pop() || clip.text || "Untitled Clip"}
                           </p>
@@ -592,7 +592,30 @@ export default function Timeline() {
                                 (max {clip.maxDuration.toFixed(1)}s)
                               </span>
                             )}
+                            {clip.keyframes && clip.keyframes.length > 0 && (
+                              <span className="text-[8px] text-amber-400 font-bold ml-1">
+                                ◆ {clip.keyframes.length}
+                              </span>
+                            )}
                           </p>
+
+                          {/* Marker Keyframe Diamonds di atas klip */}
+                          {clip.keyframes && clip.keyframes.length > 0 && (
+                            <div className="absolute inset-x-0 bottom-0.5 h-2 pointer-events-none">
+                              {clip.keyframes.map((kf) => {
+                                const clipDuration = clip.end - clip.start;
+                                const kfPercent = clipDuration > 0 ? (kf.time / clipDuration) * 100 : 0;
+                                return (
+                                  <div
+                                    key={kf.id}
+                                    title={`Keyframe pada +${kf.time.toFixed(2)}s`}
+                                    className="absolute bottom-0 w-2 h-2 -ml-1 bg-amber-400 rotate-45 border border-black/70 shadow-sm"
+                                    style={{ left: `${Math.max(0, Math.min(100, kfPercent))}%` }}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
 
                         {/* Trim Handle Right */}

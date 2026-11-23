@@ -311,26 +311,36 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
 
         <div className="w-px h-3.5 bg-[#2a2e3b] mx-0.5" />
 
+        {/* Tombol Undo */}
         <button
-          onClick={undo}
+          onClick={() => {
+            undo();
+            showNotification("Undo");
+          }}
           disabled={!canUndo()}
-          className="p-1.5 text-gray-400 hover:text-white hover:bg-[#232631] rounded-md disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
-          title="Undo (Ctrl+Z)"
+          className="flex items-center gap-1 px-2 py-1 text-gray-300 hover:text-white hover:bg-[#232631] rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          title="Undo Riwayat (Ctrl+Z)"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2m-15-7l4-4m-4 4l4 4" />
           </svg>
+          <span className="text-[11px] font-medium hidden sm:inline">Undo</span>
         </button>
 
+        {/* Tombol Redo */}
         <button
-          onClick={redo}
+          onClick={() => {
+            redo();
+            showNotification("Redo");
+          }}
           disabled={!canRedo()}
-          className="p-1.5 text-gray-400 hover:text-white hover:bg-[#232631] rounded-md disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
-          title="Redo (Ctrl+Y)"
+          className="flex items-center gap-1 px-2 py-1 text-gray-300 hover:text-white hover:bg-[#232631] rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          title="Redo Riwayat (Ctrl+Y atau Ctrl+Shift+Z)"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a5 5 0 00-5 5v2m15-7l-4-4m4 4l-4 4" />
           </svg>
+          <span className="text-[11px] font-medium hidden sm:inline">Redo</span>
         </button>
       </div>
 

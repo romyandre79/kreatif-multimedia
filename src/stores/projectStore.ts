@@ -48,6 +48,22 @@ export interface TextAnimation {
   duration: number; // Durasi animasi dalam detik (default 0.3s - 1.5s)
 }
 
+export interface KeyframeProperties {
+  x?: number;
+  y?: number;
+  scale?: number;
+  rotation?: number;
+  opacity?: number;
+  volume?: number;
+}
+
+export interface Keyframe {
+  id: string;
+  time: number; // detik relatif terhadap durasi klip (0 <= time <= clipDuration)
+  properties: KeyframeProperties;
+  easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+}
+
 export interface Clip {
   id: string;
   trackId: string;
@@ -71,6 +87,8 @@ export interface Clip {
   transition_out: Transition | null;
   text_animation?: TextAnimation | null;
   volume?: number;
+  opacity?: number;
+  keyframes?: Keyframe[];
   fade_in?: number;
   fade_out?: number;
   style?: Record<string, unknown>;
@@ -200,6 +218,10 @@ interface ProjectStore {
   splitClipAtTime: (clipId: string, splitTime: number) => void;
   deleteSelectedClip: () => void;
   updateClipProperties: (clipId: string, props: Partial<Clip>) => void;
+  addOrUpdateKeyframe: (clipId: string, time: number, properties: KeyframeProperties, easing?: Keyframe["easing"]) => void;
+  removeKeyframe: (clipId: string, keyframeId: string) => void;
+  clearAllKeyframes: (clipId: string) => void;
+  resetClipTransform: (clipId: string) => void;
 }
 
 let _idCounter = 0;
@@ -233,6 +255,19 @@ function captureSnapshot(state: {
       meta: state.meta,
     })
   );
+}
+
+export function pushUndoState(state: {
+  timeline: TimelineState;
+  characters: Character[];
+  episodes: Episode[];
+  meta: ProjectMeta;
+}) {
+  undoStack.push(captureSnapshot(state));
+  if (undoStack.length > 50) {
+    undoStack.shift(); // Batasi maksimal 50 snapshot riwayat
+  }
+  redoStack.length = 0; // Hapus riwayat redo setiap ada perubahan baru
 }
 
 // Helper untuk membuat struktur proyek baru yang bersih
@@ -952,6 +987,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   insertEpisodeToTimeline: (episodeId, audioOnly = false) => {
     const state = get();
+    pushUndoState(state);
     const episode = state.episodes.find((e) => e.id === episodeId);
     if (!episode || episode.scenes.length === 0) return;
 
@@ -962,6 +998,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   addTrack: (type) =>
     set((state) => {
+      pushUndoState(state);
       const typeNames: Record<string, string> = {
         video: "Video",
         image: "Gambar",
@@ -999,12 +1036,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
 
   removeTrack: (trackId) =>
-    set((state) => ({
-      timeline: {
-        ...state.timeline,
-        tracks: state.timeline.tracks.filter((t) => t.id !== trackId),
-      },
-    })),
+    set((state) => {
+      pushUndoState(state);
+      return {
+        timeline: {
+          ...state.timeline,
+          tracks: state.timeline.tracks.filter((t) => t.id !== trackId),
+        },
+      };
+    }),
 
   reorderTracks: (sourceIndex, destIndex) =>
     set((state) => {
@@ -1021,6 +1061,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   addClipToTrack: (trackId, clipData) =>
     set((state) => {
+      pushUndoState(state);
       const track = state.timeline.tracks.find((t) => t.id === trackId);
       if (!track) return state;
 
@@ -1096,6 +1137,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
 
       if (!movedClip) return state;
+      pushUndoState(state);
 
       const duration = movedClip.end - movedClip.start;
       const validStart = Math.max(0, newStart);
@@ -1151,6 +1193,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   trimClip: (clipId, edge, newTime) =>
     set((state) => {
+      pushUndoState(state);
       const updatedTracks = state.timeline.tracks.map((track) => ({
         ...track,
         clips: track.clips.map((clip) => {
@@ -1188,6 +1231,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         if (splitTime <= original.start + 0.1 || splitTime >= original.end - 0.1) {
           return track; // Tidak bisa split jika terlalu dekat ujung
         }
+        pushUndoState(state);
 
         const leftClip: Clip = {
           ...original,
@@ -1215,6 +1259,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   deleteSelectedClip: () =>
     set((state) => {
       if (!state.selectedClipId) return state;
+      pushUndoState(state);
 
       const updatedTracks = state.timeline.tracks.map((track) => ({
         ...track,
@@ -1237,6 +1282,120 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         })),
       },
     })),
+
+  addOrUpdateKeyframe: (clipId, time, properties, easing = "linear") =>
+    set((state) => {
+      const updatedTracks = state.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) => {
+          if (clip.id !== clipId) return clip;
+          const keyframes = clip.keyframes ? [...clip.keyframes] : [];
+          // Cek apakah sudah ada keyframe pada waktu yang sangat berdekatan (< 0.05 detik)
+          const existingIdx = keyframes.findIndex((kf) => Math.abs(kf.time - time) < 0.05);
+
+          if (existingIdx !== -1) {
+            keyframes[existingIdx] = {
+              ...keyframes[existingIdx],
+              time,
+              properties: {
+                ...keyframes[existingIdx].properties,
+                ...properties,
+              },
+              easing: easing || keyframes[existingIdx].easing,
+            };
+          } else {
+            keyframes.push({
+              id: genId("kf"),
+              time,
+              properties,
+              easing,
+            });
+          }
+
+          // Urutkan keyframe ascending berdasarkan waktu
+          keyframes.sort((a, b) => a.time - b.time);
+
+          return { ...clip, keyframes };
+        }),
+      }));
+
+      return {
+        timeline: { ...state.timeline, tracks: updatedTracks },
+      };
+    }),
+
+  removeKeyframe: (clipId, keyframeId) =>
+    set((state) => {
+      pushUndoState(state);
+      const updatedTracks = state.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) => {
+          if (clip.id !== clipId || !clip.keyframes) return clip;
+          const remaining = clip.keyframes.filter((kf) => kf.id !== keyframeId);
+          // Jika seluruh keyframe sudah dihapus, kembalikan nilai transform & opacity ke posisi default awal
+          if (remaining.length === 0) {
+            return {
+              ...clip,
+              keyframes: [],
+              transform: { scale: 1, x: 0, y: 0, rotation: 0 },
+              opacity: 1,
+            };
+          }
+          return {
+            ...clip,
+            keyframes: remaining,
+          };
+        }),
+      }));
+
+      return {
+        timeline: { ...state.timeline, tracks: updatedTracks },
+      };
+    }),
+
+  clearAllKeyframes: (clipId) =>
+    set((state) => {
+      pushUndoState(state);
+      const updatedTracks = state.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) => {
+          if (clip.id !== clipId) return clip;
+          return {
+            ...clip,
+            keyframes: [],
+            transform: { scale: 1, x: 0, y: 0, rotation: 0 },
+            opacity: 1,
+            volume: clip.volume !== undefined ? 1 : undefined,
+          };
+        }),
+      }));
+
+      return {
+        timeline: { ...state.timeline, tracks: updatedTracks },
+      };
+    }),
+
+  resetClipTransform: (clipId) =>
+    set((state) => {
+      pushUndoState(state);
+      const updatedTracks = state.timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) => {
+          if (clip.id !== clipId) return clip;
+          return {
+            ...clip,
+            keyframes: [],
+            transform: { scale: 1, x: 0, y: 0, rotation: 0 },
+            opacity: 1,
+            crop: { x: 0, y: 0, width: 1920, height: 1080 },
+          };
+        }),
+      }));
+
+      return {
+        timeline: { ...state.timeline, tracks: updatedTracks },
+      };
+    }),
 
   // --- UNDO / REDO ---
   undo: () => {

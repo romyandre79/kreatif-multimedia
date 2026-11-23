@@ -1,6 +1,7 @@
 import { Track, Clip } from "../stores/projectStore";
 import { interpolateKeyframes } from "./keyframe";
 import { getCustomTextAnimations, evaluateCustomTextAnimation } from "./customTextAnimation";
+import { getCustomTransitions, evaluateTransitionTransform } from "./customTransitions";
 
 export interface VideoExportOptions {
   projectName: string;
@@ -333,7 +334,17 @@ export async function renderAndExportVideo(
       const timeSinceStart = currentTime - clip.start;
       if (timeSinceStart >= 0 && timeSinceStart < durIn) {
         const progress = Math.min(1, Math.max(0, timeSinceStart / durIn));
-        if (tIn.type === "morph") {
+        const customTransitions = getCustomTransitions();
+        const customTrans = customTransitions.find((ct) => ct.id === tIn.type);
+
+        if (customTrans) {
+          const res = evaluateTransitionTransform(customTrans, true, progress, width, height);
+          transOpacity = res.opacity;
+          transScale = res.scale;
+          transOffsetX = res.offsetX;
+          transOffsetY = res.offsetY;
+          transRotation = res.rotation;
+        } else if (tIn.type === "morph") {
           // Efek Morph: perpaduan zoom warp elastis + sedikit putaran rotasi + fade cross-blend
           transOpacity = Math.min(1, progress * 1.4);
           transScale = 0.6 + Math.sin(progress * Math.PI * 0.5) * 0.4;
@@ -366,7 +377,17 @@ export async function renderAndExportVideo(
       const timeUntilEnd = clip.end - currentTime;
       if (timeUntilEnd >= 0 && timeUntilEnd < durOut) {
         const progress = Math.min(1, Math.max(0, timeUntilEnd / durOut));
-        if (tOut.type === "morph") {
+        const customTransitions = getCustomTransitions();
+        const customTrans = customTransitions.find((ct) => ct.id === tOut.type);
+
+        if (customTrans) {
+          const res = evaluateTransitionTransform(customTrans, false, progress, width, height);
+          transOpacity = Math.min(transOpacity, res.opacity);
+          transScale = transScale * res.scale;
+          transOffsetX += res.offsetX;
+          transOffsetY += res.offsetY;
+          transRotation += res.rotation;
+        } else if (tOut.type === "morph") {
           // Efek Morph Keluar: melembut membesar (warp forward) + fade out
           transOpacity = Math.min(transOpacity, progress * 1.3);
           transScale = transScale * (1 + (1 - progress) * 0.45);

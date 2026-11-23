@@ -1,9 +1,15 @@
+import { useState } from "react";
 import { useProjectStore, Clip } from "../../stores/projectStore";
 import { TEXT_ANIMATION_PRESETS } from "../../services/textAnimationPresets";
 import { interpolateKeyframes } from "../../services/keyframe";
 import { getCustomTextAnimations } from "../../services/customTextAnimation";
+import { getCustomTransitions } from "../../services/customTransitions";
+import { useTranslation } from "../../stores/i18nStore";
+import CustomTransitionModal from "./CustomTransitionModal";
 
 export default function Inspector() {
+  const { t } = useTranslation();
+  const [showTransitionModal, setShowTransitionModal] = useState(false);
   const selectedClipId = useProjectStore((s) => s.selectedClipId);
   const currentTime = useProjectStore((s) => s.currentTime);
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
@@ -32,9 +38,9 @@ export default function Inspector() {
         <div className="w-10 h-10 rounded-xl bg-[#1b1e26] border border-[#272b36] flex items-center justify-center mb-3 text-lg text-gray-400">
           ⚙️
         </div>
-        <p className="text-xs font-semibold text-gray-300">Inspector Properties</p>
+        <p className="text-xs font-semibold text-gray-300">{t("inspector.title", "Inspector Properties")}</p>
         <p className="text-[11px] mt-1 text-gray-500 max-w-[190px]">
-          Pilih salah satu klip di Timeline untuk mengatur transformasi, chroma key, dan audio.
+          {t("inspector.empty_hint", "Pilih salah satu klip di Timeline untuk mengatur transformasi, chroma key, dan audio.")}
         </p>
       </div>
     );
@@ -569,9 +575,13 @@ export default function Inspector() {
             <span className="font-semibold text-gray-200 text-[11px] tracking-wide uppercase">
               Peralihan Video (Transition)
             </span>
-            <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
-              Preset
-            </span>
+            <button
+              onClick={() => setShowTransitionModal(true)}
+              className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded border border-cyan-500/30 transition flex items-center gap-1"
+              title="Kelola & Buat Transisi Kustom"
+            >
+              ⚙️ Kelola Transisi
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -579,24 +589,41 @@ export default function Inspector() {
               <label className="text-[10px] text-gray-400 block mb-1">Transisi Masuk (In)</label>
               <select
                 value={transitionIn.type}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const customTrans = getCustomTransitions().find((ct) => ct.id === val);
                   updateClipProperties(selectedClip!.id, {
-                    transition_in: { ...transitionIn, type: e.target.value },
-                  })
-                }
+                    transition_in: {
+                      ...transitionIn,
+                      type: val,
+                      duration: customTrans ? customTrans.defaultDuration : transitionIn.duration || 0.5,
+                    },
+                  });
+                }}
                 className="w-full px-2 py-1.5 bg-[#101216] border border-[#272b36] rounded text-gray-200 text-[11px] focus:border-cyan-500 focus:outline-none"
               >
                 <option value="none">Tanpa Transisi (Cut)</option>
-                <option value="morph">🌀 Morph (Warp & Blend)</option>
-                <option value="fade_in">✨ Fade In</option>
-                <option value="cross_dissolve">🌫️ Dissolve / Blur In</option>
-                <option value="slide_left">⬅️ Slide Left</option>
-                <option value="slide_right">➡️ Slide Right</option>
-                <option value="slide_up">⬆️ Slide Up</option>
-                <option value="slide_down">⬇️ Slide Down</option>
-                <option value="zoom_in">🔍 Zoom In</option>
-                <option value="zoom_out">🔎 Zoom Out</option>
-                <option value="wipe_left">🧹 Wipe Left</option>
+                {getCustomTransitions().length > 0 && (
+                  <optgroup label="🎬 Transisi Buatan Saya">
+                    {getCustomTransitions().map((ct) => (
+                      <option key={ct.id} value={ct.id}>
+                        ⚡ {ct.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="✨ Preset Bawaan">
+                  <option value="morph">🌀 Morph (Warp & Blend)</option>
+                  <option value="fade_in">✨ Fade In</option>
+                  <option value="cross_dissolve">🌫️ Dissolve / Blur In</option>
+                  <option value="slide_left">⬅️ Slide Left</option>
+                  <option value="slide_right">➡️ Slide Right</option>
+                  <option value="slide_up">⬆️ Slide Up</option>
+                  <option value="slide_down">⬇️ Slide Down</option>
+                  <option value="zoom_in">🔍 Zoom In</option>
+                  <option value="zoom_out">🔎 Zoom Out</option>
+                  <option value="wipe_left">🧹 Wipe Left</option>
+                </optgroup>
               </select>
             </div>
 
@@ -604,24 +631,41 @@ export default function Inspector() {
               <label className="text-[10px] text-gray-400 block mb-1">Transisi Keluar (Out)</label>
               <select
                 value={transitionOut.type}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const customTrans = getCustomTransitions().find((ct) => ct.id === val);
                   updateClipProperties(selectedClip!.id, {
-                    transition_out: { ...transitionOut, type: e.target.value },
-                  })
-                }
+                    transition_out: {
+                      ...transitionOut,
+                      type: val,
+                      duration: customTrans ? customTrans.defaultDuration : transitionOut.duration || 0.5,
+                    },
+                  });
+                }}
                 className="w-full px-2 py-1.5 bg-[#101216] border border-[#272b36] rounded text-gray-200 text-[11px] focus:border-cyan-500 focus:outline-none"
               >
                 <option value="none">Tanpa Transisi (Cut)</option>
-                <option value="morph">🌀 Morph (Warp & Dissolve)</option>
-                <option value="fade_out">✨ Fade Out</option>
-                <option value="cross_dissolve">🌫️ Dissolve / Blur Out</option>
-                <option value="slide_left">⬅️ Slide Left</option>
-                <option value="slide_right">➡️ Slide Right</option>
-                <option value="slide_up">⬆️ Slide Up</option>
-                <option value="slide_down">⬇️ Slide Down</option>
-                <option value="zoom_in">🔍 Zoom In</option>
-                <option value="zoom_out">🔎 Zoom Out</option>
-                <option value="wipe_right">🧹 Wipe Right</option>
+                {getCustomTransitions().length > 0 && (
+                  <optgroup label="🎬 Transisi Buatan Saya">
+                    {getCustomTransitions().map((ct) => (
+                      <option key={ct.id} value={ct.id}>
+                        ⚡ {ct.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="✨ Preset Bawaan">
+                  <option value="morph">🌀 Morph (Warp & Dissolve)</option>
+                  <option value="fade_out">✨ Fade Out</option>
+                  <option value="cross_dissolve">🌫️ Dissolve / Blur Out</option>
+                  <option value="slide_left">⬅️ Slide Left</option>
+                  <option value="slide_right">➡️ Slide Right</option>
+                  <option value="slide_up">⬆️ Slide Up</option>
+                  <option value="slide_down">⬇️ Slide Down</option>
+                  <option value="zoom_in">🔍 Zoom In</option>
+                  <option value="zoom_out">🔎 Zoom Out</option>
+                  <option value="wipe_right">🧹 Wipe Right</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -652,6 +696,10 @@ export default function Inspector() {
             </div>
           )}
         </div>
+      )}
+      {/* Modal Kelola Transisi Kustom */}
+      {showTransitionModal && (
+        <CustomTransitionModal onClose={() => setShowTransitionModal(false)} />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useProjectStore, Clip } from "../../stores/projectStore";
+import { useTranslation } from "../../stores/i18nStore";
 import InternalAudioEditorModal from "../InternalEditor/InternalAudioEditorModal";
 import InternalImageEditorModal from "../InternalEditor/InternalImageEditorModal";
 import InternalSubtitleEditorModal from "../InternalEditor/InternalSubtitleEditorModal";
@@ -19,6 +20,7 @@ const TRACK_ICONS: Record<string, string> = {
 };
 
 export default function Timeline() {
+  const { t } = useTranslation();
   const tracks = useProjectStore((s) => s.timeline.tracks);
   const currentTime = useProjectStore((s) => s.currentTime);
   const duration = useProjectStore((s) => s.meta.duration);
@@ -206,14 +208,14 @@ export default function Timeline() {
                 <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                   <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                 </svg>
-                <span className="text-[11px]">Pause</span>
+                <span className="text-[11px]">{t("preview.pause", "Pause")}</span>
               </>
             ) : (
               <>
                 <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                <span className="text-[11px]">Play</span>
+                <span className="text-[11px]">{t("preview.play", "Play")}</span>
               </>
             )}
           </button>
@@ -230,7 +232,7 @@ export default function Timeline() {
             <svg className="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
             </svg>
-            <span className="text-[11px] font-medium">Split</span>
+            <span className="text-[11px] font-medium">{t("timeline.split", "Split")}</span>
             <kbd className="text-[9px] text-gray-500 font-mono ml-0.5">S</kbd>
           </button>
 
@@ -244,7 +246,7 @@ export default function Timeline() {
             <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            <span className="text-[11px] font-medium">Hapus</span>
+            <span className="text-[11px] font-medium">{t("timeline.delete", "Hapus")}</span>
           </button>
         </div>
 

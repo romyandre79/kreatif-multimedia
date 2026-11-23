@@ -44,7 +44,15 @@ Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (W
   - Tampilan visual diamond marker langsung di body klip timeline dan navigator titik di Inspector.
   - Terintegrasi penuh ke Canvas Preview 60 FPS dan Final Video Exporter.
 - Trimming (in/out point), cutting, splitting, multi-layer snapping, dan scrubber.
-- **Transisi antar-klip**: Fade In/Out, Cross Dissolve, Wipe, Slide, dan custom transition.
+- **Transisi Antar-Klip & Custom Transition Studio (CRUD)**:
+  - Preset bawaan: Morph (Warp & Blend), Fade In/Out, Cross Dissolve, Slide Left/Right/Up/Down, Zoom In/Out, Wipe Left/Right.
+  - **CRUD Video Transition Manager**:
+    - Dialog pembuat transisi kustom dengan **Live 2-Scene Split Preview (Adegan A & B)**.
+    - Parameter efek dasar: Fade, Slide, Zoom, Rotate/Spin, Wipe, Morph/Warp, Glitch, Flip 3D, Circle Iris.
+    - Kurva Easing presisi: Linear, Ease In, Ease Out, Ease In-Out, Bounce, Elastic.
+    - Konfigurasi arah pergerakan, rotasi derajat, rentang skala awal/akhir, dan durasi default.
+    - Tersimpan permanen di LocalStorage dan langsung muncul di dropdown *Inspector* (Transisi Masuk & Keluar).
+    - Render real-time di Canvas Preview 60 FPS dan hasil export final video.
 - **Undo/Redo**: Riwayat perubahan tak terbatas dengan keyboard shortcut (Ctrl+Z / Ctrl+Shift+Z).
 - **Auto-Stop Playback**: Playback otomatis berhenti tepat di batas akhir klip terakhir timeline.
 
@@ -76,7 +84,17 @@ Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (W
 - Akselerasi hardware encoding: NVENC (Nvidia), VAAPI (Linux), VideoToolbox (macOS), QSV (Intel), AMF (AMD).
 - **Direct Upload**: YouTube API v3, TikTok Draft API, Google Drive OAuth.
 
-### 10. Proteksi Data & Kenyamanan
+### 10. Multi-Language System (i18n) & CRUD Kamus Terjemahan
+- **Dukungan Multi-Bahasa Bawaan**: Kamus lengkap Bahasa Indonesia (🇮🇩) dan English (🇺🇸).
+- **Language Switcher Instan**: Ganti bahasa tampilan aplikasi secara real-time langsung dari toolbar atas.
+- **Language Manager (CRUD)**:
+  - Menambah bahasa baru (misal: Jepang 🇯🇵, Spanyol 🇪🇸, Jerman 🇩🇪, dll) dengan opsi menyalin terjemahan awal dari bahasa lain.
+  - Mengedit nilai terjemahan per kata/frasa secara inline tabel.
+  - Menambah dan menghapus kunci terjemahan (keys) secara global di seluruh bahasa.
+  - Reset kamus ke pengaturan default.
+  - Tersimpan permanen di penyimpanan lokal (`localStorage`).
+
+### 11. Proteksi Data & Kenyamanan
 - **Auto-Save**: Proyek otomatis tersimpan setiap 60 detik dan saat ada perubahan penting (konfigurabel).
 - **Crash Recovery**: Saat aplikasi dibuka ulang setelah crash, proyek dikembalikan ke state terakhir yang tersimpan.
 - **Keyboard Shortcuts**: Shortcut standar editor profesional (Space = Play/Pause, S = Split, Delete = Hapus klip, Ctrl+Z = Undo, Ctrl+S = Save, dll.).
@@ -117,13 +135,19 @@ kreatif-multimedia/
 ├── src/                           # Frontend React / TypeScript
 │   ├── components/
 │   │   ├── CharacterVault/        # Manajemen karakter & suara
-│   │   ├── StoryEpisode/          # Manajemen episode & naskah dialog
-│   │   ├── CanvasPreview/         # WebGL canvas preview & player controls
-│   │   ├── Timeline/              # Multi-track timeline editor
-│   │   ├── ExportDialog/          # Dialog pilih format, resolusi, orientasi
-│   │   └── Inspector/             # Pengaturan properti klip, keying, transisi
+│   │   ├── StoryEpisode/          # Manajemen episode, dialog & Smart Script Importer
+│   │   ├── TextStudio/            # Studio teks, tipografi font OS & 55+ animasi
+│   │   ├── CanvasPreview/         # WebGL canvas preview 60 FPS & player controls
+│   │   ├── Timeline/              # Multi-track timeline & keyframe diamond points
+│   │   ├── AudioVault/            # SFX Freesound.org & BGM library
+│   │   ├── ExportDialog/          # Dialog export video (MP4/WebM/MOV/GIF)
+│   │   ├── Inspector/             # Properties, Keyframe, Chroma Key, & Transition Studio
+│   │   ├── LanguageManager/       # Multi-language & kamus terjemahan i18n (CRUD)
+│   │   ├── AiSettingsModal/       # Pengaturan API AI lokal & cloud provider
+│   │   └── GeminiFlow/            # Google Gemini AI video generation flow
 │   ├── shaders/                   # GLSL shaders (Chroma key, color balance)
-│   ├── stores/                    # State management (Timeline, Project, Assets, Undo)
+│   ├── services/                  # Business logic (customTransitions, i18n, keyframe, etc.)
+│   ├── stores/                    # State management (projectStore, i18nStore)
 │   ├── App.tsx
 │   └── main.tsx
 ├── ARCHITECTURE.md                # Dokumentasi detail arsitektur teknis

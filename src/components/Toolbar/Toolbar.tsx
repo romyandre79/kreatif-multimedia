@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
+import { useI18nStore } from "../../stores/i18nStore";
 import NewProjectModal from "../NewProjectModal/NewProjectModal";
 
 interface ToolbarProps {
@@ -7,9 +8,20 @@ interface ToolbarProps {
   onExport: () => void;
   onOpenAiSettings: () => void;
   onOpenGeminiFlow: () => void;
+  onOpenLanguageManager?: () => void;
 }
 
-export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOpenGeminiFlow }: ToolbarProps) {
+export default function Toolbar({
+  projectTitle,
+  onExport,
+  onOpenAiSettings,
+  onOpenGeminiFlow,
+  onOpenLanguageManager,
+}: ToolbarProps) {
+  const t = useI18nStore((s) => s.t);
+  const currentLanguage = useI18nStore((s) => s.currentLanguage);
+  const setLanguage = useI18nStore((s) => s.setLanguage);
+  const languages = useI18nStore((s) => s.languages);
   const setProjectTitle = useProjectStore((s) => s.setProjectTitle);
   const saveProjectToJson = useProjectStore((s) => s.saveProjectToJson);
   const loadProjectFromJson = useProjectStore((s) => s.loadProjectFromJson);
@@ -169,7 +181,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <span className="font-medium text-[11px]">Proyek Baru</span>
+          <span className="font-medium text-[11px]">{t("toolbar.new_project", "Proyek Baru")}</span>
         </button>
 
         <div className="w-px h-3.5 bg-[#2a2e3b] mx-0.5" />
@@ -182,7 +194,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          <span className="font-medium text-[11px]">Import</span>
+          <span className="font-medium text-[11px]">{t("toolbar.import_media", "Import")}</span>
         </button>
 
         {/* Tombol Simpan JSON Manual */}
@@ -197,7 +209,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
           </svg>
-          <span className="font-semibold text-[11px]">Simpan (.json)</span>
+          <span className="font-semibold text-[11px]">{t("toolbar.save", "Simpan (.json)")}</span>
         </button>
 
         {/* Tombol & Menu Auto-Save Tanpa File Baru */}
@@ -212,7 +224,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           >
             <span className={`w-1.5 h-1.5 rounded-full ${autoSaveConfig.enabled ? "bg-emerald-400 animate-pulse" : "bg-gray-500"}`} />
             <span className="font-medium text-[11px]">
-              Auto-Save {autoSaveConfig.enabled ? `(${autoSaveConfig.intervalMinutes}m)` : "Off"}
+              {t("toolbar.auto_save", "Auto-Save")} {autoSaveConfig.enabled ? `(${autoSaveConfig.intervalMinutes}m)` : t("toolbar.auto_save_off", "Off")}
             </span>
             <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -324,7 +336,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2m-15-7l4-4m-4 4l4 4" />
           </svg>
-          <span className="text-[11px] font-medium hidden sm:inline">Undo</span>
+          <span className="text-[11px] font-medium hidden sm:inline">{t("toolbar.undo", "Undo")}</span>
         </button>
 
         {/* Tombol Redo */}
@@ -340,19 +352,44 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a5 5 0 00-5 5v2m15-7l-4-4m4 4l-4 4" />
           </svg>
-          <span className="text-[11px] font-medium hidden sm:inline">Redo</span>
+          <span className="text-[11px] font-medium hidden sm:inline">{t("toolbar.redo", "Redo")}</span>
         </button>
       </div>
 
-      {/* Action Buttons: AI Hub, Gemini Flow & Export */}
+      {/* Action Buttons: Language Selector, AI Hub, Gemini Flow & Export */}
       <div className="flex items-center gap-2">
+        {/* Language Selector Dropdown & CRUD Manager Button */}
+        <div className="flex items-center bg-[#181b22] border border-[#2b2f3d] rounded-lg p-0.5">
+          <select
+            value={currentLanguage}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-transparent text-xs text-gray-200 px-2 py-1 rounded focus:outline-none cursor-pointer"
+            title={t("toolbar.language", "Pilih Bahasa")}
+          >
+            {languages.map((lang) => (
+              <option key={lang.code} value={lang.code} className="bg-[#181b22] text-white">
+                {lang.flag} {lang.name}
+              </option>
+            ))}
+          </select>
+          {onOpenLanguageManager && (
+            <button
+              onClick={onOpenLanguageManager}
+              className="px-2 py-1 text-gray-400 hover:text-cyan-400 text-xs transition border-l border-[#2b2f3d]"
+              title={t("toolbar.manage_languages", "Kelola Bahasa (CRUD i18n)")}
+            >
+              🌐
+            </button>
+          )}
+        </div>
+
         <button
           onClick={onOpenGeminiFlow}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-950/80 to-purple-950/80 hover:from-indigo-900/90 hover:to-purple-900/90 border border-indigo-600/40 text-indigo-300 text-xs font-semibold transition-all shadow-sm shadow-indigo-950/50 hover:border-indigo-400"
           title="Buka Google Gemini Flow Studio"
         >
           <span className="text-cyan-400">✨</span>
-          <span>Gemini Flow</span>
+          <span>{t("toolbar.gemini_flow", "Gemini Flow")}</span>
         </button>
 
         <button
@@ -360,7 +397,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181b22] hover:bg-[#222631] border border-[#2b2f3d] text-cyan-400 text-xs font-medium transition-all shadow-sm hover:border-cyan-500/40"
         >
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span>Preference</span>
+          <span>{t("toolbar.ai_settings", "Preference")}</span>
         </button>
 
         <button
@@ -370,7 +407,7 @@ export default function Toolbar({ projectTitle, onExport, onOpenAiSettings, onOp
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
-          <span>Export</span>
+          <span>{t("toolbar.export_video", "Export")}</span>
         </button>
       </div>
 

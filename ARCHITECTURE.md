@@ -511,3 +511,42 @@ Sistem tipografi dan animasi teks tingkat lanjut untuk overlay/subtitle:
 3. **Typography Toolbar**:
    - Kontrol Font Family, Bold, Italic, Underline, Ukuran, Warna, dan Background Banner.
    - Sinkronisasi instan ke WebGL Canvas Preview dan Final FFmpeg/Canvas Exporter.
+
+---
+
+## 10. Custom Video Transition Architecture (CRUD)
+
+Mekanisme pembuatan, penyimpanan, dan rendering transisi video/gambar kustom:
+
+1. **Storage & Data Model (`src/services/customTransitions.ts`)**:
+   - Skema `CustomTransitionPreset`: `id`, `name`, `baseEffect` (fade, slide, zoom, rotate, wipe, morph, glitch, flip, circle_iris), `direction`, `startScale`, `endScale`, `rotationDegrees`, `easing`, `defaultDuration`, `blurAmount`.
+   - Disimpan di LocalStorage (`kreatif_custom_video_transitions`) dan digabungkan secara transparan dengan preset bawaan (`getAllTransitions()`).
+2. **Evaluasi Transformasi (`evaluateTransitionTransform`)**:
+   - Menerima parameter transisi, arah (In/Out), progres interpolasi waktu (0.0 - 1.0), serta dimensi canvas.
+   - Menghitung nilai output: `opacity`, `scale`, `offsetX`, `offsetY`, dan `rotation`.
+3. **Modal CRUD & Live 2-Scene Preview (`src/components/Inspector/CustomTransitionModal.tsx`)**:
+   - UI interaktif dua panel: Daftar transisi di sisi kiri (tambah, edit, hapus) dan konfigurator parameter serta layar live preview adegan A & B di sisi kanan.
+4. **Integrasi Rendering**:
+   - **Inspector (`src/components/Inspector/Inspector.tsx`)**: Menampilkan transisi buatan pengguna dalam optgroup dropdown *Transisi Masuk (In)* dan *Transisi Keluar (Out)* dengan tombol trigger `[ ⚙️ Kelola Transisi ]`.
+   - **Canvas Preview (`src/components/CanvasPreview/CanvasPreview.tsx`)**: Evaluasi real-time 60 FPS pada WebGL/2D canvas.
+   - **Video Exporter (`src/services/videoExporter.ts`)**: Evaluasi sinkron frame-by-frame saat proses final render dan ekspor video.
+
+---
+
+## 11. Multi-Language & Internationalization (i18n) Architecture
+
+Mekanisme sistem multi-bahasa terdistribusi dengan kemampuan CRUD kamus terjemahan:
+
+1. **State & Store (`src/stores/i18nStore.ts`)**:
+   - Berisi daftar `LanguagePack` (`code`, `name`, `flag`, `isDefault`, `translations: { [key]: string }`).
+   - Menyediakan kamus bawaan lengkap: **Bahasa Indonesia (`id`)** dan **English (`en`)**.
+   - Menyediakan fungsi shorthand `t(key, fallback)` dan hook `useTranslation()`.
+   - Persistensi di `localStorage` (`kreatif_language_packs` dan `kreatif_current_language`).
+2. **Kamus Terjemahan Komprehensif**:
+   - Mencakup seluruh modul: Toolbar, Timeline, Inspector, Audio Vault, Text Studio, Character Vault, Story & Episode, Interactive Canvas Preview, dan Export Dialog.
+3. **Language Manager Modal (`src/components/LanguageManager/LanguageManagerModal.tsx`)**:
+   - **Create**: Menambah bahasa baru dengan ISO code, nama, emoji bendera, dan menyalin basis terjemahan awal.
+   - **Read**: Pencarian dan filter kata kunci/kalimat secara instan.
+   - **Update**: Edit terjemahan secara live inline input tanpa perlu reload aplikasi.
+   - **Delete**: Hapus bahasa kustom atau teks kunci tertentu.
+   - **Reset**: Mengembalikan seluruh kamus ke konfigurasi awal bawaan.

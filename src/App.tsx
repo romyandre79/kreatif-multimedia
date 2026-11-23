@@ -9,15 +9,19 @@ import Inspector from "./components/Inspector/Inspector";
 import ExportDialog from "./components/ExportDialog/ExportDialog";
 import AiSettingsModal from "./components/AiSettingsModal/AiSettingsModal";
 import GeminiGeneratorModal from "./components/GeminiFlow/GeminiGeneratorModal";
+import LanguageManagerModal from "./components/LanguageManager/LanguageManagerModal";
 import Toolbar from "./components/Toolbar/Toolbar";
 import { useProjectStore } from "./stores/projectStore";
+import { useTranslation } from "./stores/i18nStore";
 
 function App() {
   const [activePanel, setActivePanel] = useState<"audios" | "text" | "characters" | "episodes">("audios");
   const [showExport, setShowExport] = useState(false);
   const [showAiSettings, setShowAiSettings] = useState(false);
   const [showGeminiFlow, setShowGeminiFlow] = useState(false);
+  const [showLanguageManager, setShowLanguageManager] = useState(false);
   const projectTitle = useProjectStore((s) => s.meta.title);
+  const { t } = useTranslation();
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0e0f12] text-gray-200 select-none overflow-hidden font-sans">
@@ -27,6 +31,7 @@ function App() {
         onExport={() => setShowExport(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
         onOpenGeminiFlow={() => setShowGeminiFlow(true)}
+        onOpenLanguageManager={() => setShowLanguageManager(true)}
       />
 
       {/* Main Studio Work Area */}
@@ -45,7 +50,7 @@ function App() {
                 }`}
               >
                 <span>🎵</span>
-                <span>Audios</span>
+                <span>{t("tab.audios", "Audios")}</span>
               </button>
               <button
                 onClick={() => setActivePanel("text")}
@@ -56,7 +61,7 @@ function App() {
                 }`}
               >
                 <span>🔤</span>
-                <span>Text</span>
+                <span>{t("tab.text", "Text")}</span>
               </button>
               <button
                 onClick={() => setActivePanel("characters")}
@@ -67,7 +72,7 @@ function App() {
                 }`}
               >
                 <span>🎭</span>
-                <span>Karakter</span>
+                <span>{t("tab.characters", "Karakter")}</span>
               </button>
               <button
                 onClick={() => setActivePanel("episodes")}
@@ -78,7 +83,7 @@ function App() {
                 }`}
               >
                 <span>📝</span>
-                <span>Episode</span>
+                <span>{t("tab.episodes", "Episode")}</span>
               </button>
             </div>
           </div>
@@ -117,6 +122,9 @@ function App() {
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
       {showAiSettings && <AiSettingsModal onClose={() => setShowAiSettings(false)} />}
       {showGeminiFlow && <GeminiGeneratorModal onClose={() => setShowGeminiFlow(false)} />}
+      {showLanguageManager && (
+        <LanguageManagerModal onClose={() => setShowLanguageManager(false)} />
+      )}
     </div>
   );
 }

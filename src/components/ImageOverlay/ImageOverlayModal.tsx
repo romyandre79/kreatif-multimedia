@@ -230,7 +230,7 @@ export default function ImageOverlayModal({ onClose, onAdded }: ImageOverlayModa
                 >
                   <div className="text-3xl mb-1 group-hover:scale-110 transition-transform">📂</div>
                   <p className="text-xs font-semibold">Klik untuk Memilih Gambar</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Mendukung PNG (transparan), JPG, SVG, WebP</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Mendukung PNG, JPG, SVG, WebP, HEIC/HEIF</p>
                 </div>
               )}
             </div>
@@ -240,7 +240,7 @@ export default function ImageOverlayModal({ onClose, onAdded }: ImageOverlayModa
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.webp,.png,.jpg,.jpeg,.svg,.gif,.heic,.heif,image/heic,image/heif"
                 onChange={handleFileSelect}
                 className="hidden"
               />

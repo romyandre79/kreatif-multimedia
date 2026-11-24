@@ -121,7 +121,7 @@ export default function Toolbar({
         ref={importFileInputRef}
         type="file"
         multiple
-        accept="video/*,image/*,audio/*"
+        accept="video/*,image/*,audio/*,.webp,.png,.jpg,.jpeg,.heic,.heif,.mp4,.webm,.mov,.mp3,.wav,.ogg"
         onChange={handleMediaUpload}
         className="hidden"
       />

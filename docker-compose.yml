@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # 1. Frontend Web Studio (React + Vite + Nginx)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kreatif-web-app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - render-api
+
+  # 2. Backend Cloud Rendering Engine (FFmpeg & Node.js API)
+  render-api:
+    build:
+      context: ./server-render
+      dockerfile: Dockerfile
+    container_name: kreatif-render-service
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - render-output:/app/output
+      - render-uploads:/app/uploads
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+
+volumes:
+  render-output:
+  render-uploads:

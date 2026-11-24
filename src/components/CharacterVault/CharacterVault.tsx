@@ -182,7 +182,7 @@ export default function CharacterVault() {
                 <input
                   ref={avatarInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.webp,.png,.jpg,.jpeg,.heic,.heif,image/heic,image/heif"
                   onChange={handleAvatarUpload}
                   className="hidden"
                 />
@@ -367,7 +367,7 @@ export default function CharacterVault() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/*,video/*"
+                accept="image/*,video/*,.webp,.png,.jpg,.jpeg,.heic,.heif,.mp4,.webm"
                 onChange={handleAssetUpload}
                 className="hidden"
               />
@@ -378,7 +378,7 @@ export default function CharacterVault() {
                 <p className="text-xl mb-1">🎬</p>
                 <p>Belum ada media pose.</p>
                 <p className="text-[10px] mt-0.5 text-gray-600">
-                  Upload file Image (PNG/JPG) atau Video (MP4/WebM) green-screen untuk karakter ini.
+                  Upload file Image (PNG/JPG/WebP/HEIC) atau Video (MP4/WebM) green-screen untuk karakter ini.
                 </p>
               </div>
             ) : (

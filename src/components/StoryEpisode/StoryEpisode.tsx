@@ -202,7 +202,7 @@ export default function StoryEpisode() {
         ref={sceneFileInputRef}
         type="file"
         multiple
-        accept={uploadTargetScene?.type === "video" ? "video/*" : "image/*,video/*"}
+        accept={uploadTargetScene?.type === "video" ? "video/*" : "image/*,video/*,.webp,.png,.jpg,.jpeg,.heic,.heif,.mp4,.webm"}
         onChange={handleSceneMediaUpload}
         className="hidden"
       />

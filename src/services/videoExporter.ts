@@ -2,6 +2,7 @@ import { Track, Clip } from "../stores/projectStore";
 import { interpolateKeyframes } from "./keyframe";
 import { getCustomTextAnimations, evaluateCustomTextAnimation } from "./customTextAnimation";
 import { getCustomTransitions, evaluateTransitionTransform } from "./customTransitions";
+import { evaluateImageAnimation } from "./imageAnimationPresets";
 
 export interface VideoExportOptions {
   projectName: string;
@@ -415,17 +416,39 @@ export async function renderAndExportVideo(
       }
     }
 
-    const cx = width / 2 + transform.x + transOffsetX;
-    const cy = height / 2 + transform.y + transOffsetY;
+    // Kalkulasi Animasi Gambar (In, Out, Loop) jika klip memiliki image_animation
+    let imgAnimOpacity = 1;
+    let imgAnimScale = 1;
+    let imgAnimOffsetX = 0;
+    let imgAnimOffsetY = 0;
+    let imgAnimRotation = 0;
+
+    if (clip.image_animation) {
+      const imgRes = evaluateImageAnimation(
+        clip.image_animation,
+        relativeTime,
+        clip.end - clip.start,
+        width,
+        height
+      );
+      imgAnimOpacity = imgRes.opacity;
+      imgAnimScale = imgRes.scale;
+      imgAnimOffsetX = imgRes.offsetX;
+      imgAnimOffsetY = imgRes.offsetY;
+      imgAnimRotation = imgRes.rotation;
+    }
+
+    const cx = width / 2 + transform.x + transOffsetX + imgAnimOffsetX;
+    const cy = height / 2 + transform.y + transOffsetY + imgAnimOffsetY;
 
     ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity * keyframeOpacity));
+    ctx.globalAlpha = Math.max(0, Math.min(1, transOpacity * keyframeOpacity * imgAnimOpacity));
     ctx.translate(cx, cy);
-    const finalRotation = transform.rotation + transRotation;
+    const finalRotation = transform.rotation + transRotation + imgAnimRotation;
     if (finalRotation) {
       ctx.rotate((finalRotation * Math.PI) / 180);
     }
-    const finalScale = transform.scale * transScale;
+    const finalScale = transform.scale * transScale * imgAnimScale;
     ctx.scale(finalScale, finalScale);
 
     const mWidth =
@@ -641,10 +664,46 @@ export async function renderAndExportVideo(
         } else if (animPreset === "glow" || animPreset === "neon_pink" || animPreset === "glow_pulse" || animPreset === "electric_spark" || animPreset === "matrix_green" || animPreset === "fire_ember") {
           ctx.shadowColor = (clip.style?.shadowColor as string) || "#f59e0b";
           ctx.shadowBlur = Math.round(18 * Math.abs(Math.sin(currentTime * 5)) + 6);
-        } else if (animPreset === "typewriter") {
+        } else if (animPreset === "typewriter" || animPreset === "capcut_typewriter_cursor") {
           const totalChars = clip.text.length;
           const visibleCount = Math.floor(animProgress * totalChars);
-          displayText = clip.text.substring(0, visibleCount);
+          displayText = clip.text.substring(0, visibleCount) + (animProgress < 1 ? "▎" : "");
+        } else if (animPreset === "capcut_zoom_slam") {
+          textOpacity = Math.min(1, animProgress * 2);
+          textScale = animProgress < 0.6 ? 2.5 - animProgress * 2.5 : 1.0 + Math.sin((animProgress - 0.6) * Math.PI * 2.5) * 0.12;
+        } else if (animPreset === "capcut_slide_blur") {
+          textOpacity = animProgress;
+          textOffsetX = (1 - Math.pow(animProgress, 2)) * (width * 0.5);
+        } else if (animPreset === "capcut_spring_up") {
+          textOpacity = animProgress;
+          textOffsetY = (1 - animProgress) * (baseFontSize * 2);
+          textScale = animProgress < 0.7 ? 0.4 + animProgress * 1.1 : 1.17 - (animProgress - 0.7) * 0.56;
+        } else if (animPreset === "capcut_karaoke_glow") {
+          textScale = 1 + Math.abs(Math.sin(currentTime * 6)) * 0.08;
+          ctx.shadowColor = (clip.style?.shadowColor as string) || "#4ade80";
+          ctx.shadowBlur = Math.round(15 + Math.sin(currentTime * 8) * 8);
+        } else if (animPreset === "capcut_flip_card") {
+          textOpacity = animProgress;
+          textScale = Math.sin(animProgress * Math.PI * 0.5);
+        } else if (animPreset === "capcut_shiver_shake") {
+          textOpacity = animProgress;
+          if (animProgress > 0.2 && animProgress < 0.8) {
+            textOffsetX = (Math.random() - 0.5) * 8 * (1 - animProgress);
+            textOffsetY = (Math.random() - 0.5) * 8 * (1 - animProgress);
+          }
+        } else if (animPreset === "capcut_pendulum_swing") {
+          textOpacity = animProgress;
+          textOffsetY = (1 - animProgress) * (baseFontSize * 1.2);
+          textRotation = Math.sin((1 - animProgress) * Math.PI * 2) * 20 * (1 - animProgress);
+        } else if (animPreset === "capcut_spiral_vortex") {
+          textOpacity = animProgress;
+          textScale = 0.1 + animProgress * 0.9;
+          textRotation = (1 - animProgress) * 540;
+        } else if (animPreset === "capcut_neon_twitch") {
+          const flicker = Math.sin(currentTime * 15) > 0.1 ? 1 : 0.35;
+          textOpacity = animProgress * flicker;
+          ctx.shadowColor = (clip.style?.shadowColor as string) || "#ec4899";
+          ctx.shadowBlur = Math.round(18 * flicker + 6);
         } else {
           textOpacity = Math.min(1, animProgress * 1.2);
           textScale = 0.85 + animProgress * 0.15;
@@ -653,8 +712,22 @@ export async function renderAndExportVideo(
         const isBoldStyle = clip.style?.isBold !== undefined ? Boolean(clip.style.isBold) : true;
         const isItalicStyle = Boolean(clip.style?.isItalic);
         const isUnderlineStyle = Boolean(clip.style?.isUnderline);
+        const isStrikethroughStyle = Boolean(clip.style?.isStrikethrough);
+        const textCaseStyle = (clip.style?.textCase as string) || "none";
+        const strokeWidthStyle = Number(clip.style?.strokeWidth) || 0;
+        const strokeColorStyle = (clip.style?.strokeColor as string) || "#000000";
         const fontFamilyStyle = (clip.style?.fontFamily as string) || "system-ui, -apple-system, sans-serif";
         const fontPrefix = `${isItalicStyle ? "italic " : ""}${isBoldStyle ? "bold " : ""}`;
+
+        // Transformasi huruf teks berdasarkan textCaseStyle
+        let formattedDisplayText = displayText || "";
+        if (textCaseStyle === "uppercase") {
+          formattedDisplayText = formattedDisplayText.toUpperCase();
+        } else if (textCaseStyle === "lowercase") {
+          formattedDisplayText = formattedDisplayText.toLowerCase();
+        } else if (textCaseStyle === "capitalize") {
+          formattedDisplayText = formattedDisplayText.replace(/\b\w/g, (c) => c.toUpperCase());
+        }
 
         ctx.globalAlpha = textOpacity;
         ctx.font = `${fontPrefix}${Math.round(baseFontSize * textScale)}px ${fontFamilyStyle}`;
@@ -664,7 +737,7 @@ export async function renderAndExportVideo(
         const maxTextWidth = width * 0.82; // batas lebar maksimal teks di video (82% lebar)
 
         // Algoritma Word Wrapping Otomatis
-        const words = (displayText || "").split(" ");
+        const words = formattedDisplayText.split(" ");
         const lines: string[] = [];
         let currentLine = "";
 
@@ -722,11 +795,23 @@ export async function renderAndExportVideo(
         let startTextY = boxY + boxPaddingY + lineHeight / 2;
         for (const line of lines) {
           const textX = boxX + totalBoxWidth / 2;
+
+          // Render stroke/garis luar jika aktif
+          if (strokeWidthStyle > 0) {
+            ctx.save();
+            ctx.strokeStyle = strokeColorStyle;
+            ctx.lineWidth = strokeWidthStyle;
+            ctx.lineJoin = "round";
+            ctx.strokeText(line, textX, startTextY);
+            ctx.restore();
+          }
+
           ctx.fillText(line, textX, startTextY);
+
+          const lineWidth = ctx.measureText(line).width;
 
           // Render garis bawah (underline)
           if (isUnderlineStyle) {
-            const lineWidth = ctx.measureText(line).width;
             const underlineY = startTextY + baseFontSize * 0.45;
             ctx.save();
             ctx.strokeStyle = fontColor;
@@ -734,6 +819,18 @@ export async function renderAndExportVideo(
             ctx.beginPath();
             ctx.moveTo(textX - lineWidth / 2, underlineY);
             ctx.lineTo(textX + lineWidth / 2, underlineY);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Render garis coret (strikethrough)
+          if (isStrikethroughStyle) {
+            ctx.save();
+            ctx.strokeStyle = fontColor;
+            ctx.lineWidth = Math.max(2, Math.round(baseFontSize * 0.08));
+            ctx.beginPath();
+            ctx.moveTo(textX - lineWidth / 2, startTextY);
+            ctx.lineTo(textX + lineWidth / 2, startTextY);
             ctx.stroke();
             ctx.restore();
           }

@@ -4,6 +4,12 @@ import { TEXT_ANIMATION_PRESETS } from "../../services/textAnimationPresets";
 import { interpolateKeyframes } from "../../services/keyframe";
 import { getCustomTextAnimations } from "../../services/customTextAnimation";
 import { getCustomTransitions } from "../../services/customTransitions";
+import {
+  IMAGE_ANIMATION_IN_PRESETS,
+  IMAGE_ANIMATION_OUT_PRESETS,
+  IMAGE_ANIMATION_LOOP_PRESETS,
+  ImageAnimationConfig,
+} from "../../services/imageAnimationPresets";
 import { useTranslation } from "../../stores/i18nStore";
 import CustomTransitionModal from "./CustomTransitionModal";
 
@@ -564,6 +570,188 @@ export default function Inspector() {
               }}
               className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-purple-500"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Animasi Khusus Klip Gambar / Overlay / Stiker */}
+      {trackType === "image" && (
+        <div className="rounded-lg bg-[#161a24] border border-cyan-500/30 p-3 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-cyan-400 text-sm">🖼️</span>
+              <span className="font-semibold text-gray-200 text-[11px] tracking-wide uppercase">
+                Animasi Gambar & Stiker
+              </span>
+            </div>
+            <span className="text-[9px] font-mono text-cyan-400 bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/50">
+              Preset
+            </span>
+          </div>
+
+          {/* Animasi Masuk (Intro Motion) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] text-gray-300">
+              <label className="font-medium">Animasi Masuk (Intro Motion)</label>
+            </div>
+            <select
+              value={selectedClip.image_animation?.inPreset || "none"}
+              onChange={(e) => {
+                const currentAnim: ImageAnimationConfig = selectedClip!.image_animation || {};
+                updateClipProperties(selectedClip!.id, {
+                  image_animation: {
+                    ...currentAnim,
+                    inPreset: e.target.value,
+                    inDuration: currentAnim.inDuration || 0.5,
+                  },
+                });
+              }}
+              className="w-full px-2.5 py-1.5 bg-[#101216] border border-[#272b36] rounded text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              {IMAGE_ANIMATION_IN_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.icon} {p.name}
+                </option>
+              ))}
+            </select>
+
+            {selectedClip.image_animation?.inPreset && selectedClip.image_animation.inPreset !== "none" && (
+              <div className="pt-1">
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                  <span>Kecepatan / Durasi Masuk</span>
+                  <span className="font-mono text-cyan-400">
+                    {(selectedClip.image_animation.inDuration || 0.5).toFixed(2)}s
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="2.0"
+                  step="0.05"
+                  value={selectedClip.image_animation.inDuration || 0.5}
+                  onChange={(e) => {
+                    const currentAnim: ImageAnimationConfig = selectedClip!.image_animation || {};
+                    updateClipProperties(selectedClip!.id, {
+                      image_animation: {
+                        ...currentAnim,
+                        inDuration: parseFloat(e.target.value),
+                      },
+                    });
+                  }}
+                  className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-cyan-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Animasi Loop Kontinu */}
+          <div className="pt-2 border-t border-gray-800/80 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] text-gray-300">
+              <label className="font-medium">Gerakan Loop Kontinu</label>
+            </div>
+            <select
+              value={selectedClip.image_animation?.loopPreset || "none"}
+              onChange={(e) => {
+                const currentAnim: ImageAnimationConfig = selectedClip!.image_animation || {};
+                updateClipProperties(selectedClip!.id, {
+                  image_animation: {
+                    ...currentAnim,
+                    loopPreset: e.target.value,
+                    loopSpeed: currentAnim.loopSpeed || 1.0,
+                  },
+                });
+              }}
+              className="w-full px-2.5 py-1.5 bg-[#101216] border border-[#272b36] rounded text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              {IMAGE_ANIMATION_LOOP_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.icon} {p.name}
+                </option>
+              ))}
+            </select>
+
+            {selectedClip.image_animation?.loopPreset && selectedClip.image_animation.loopPreset !== "none" && (
+              <div className="pt-1">
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                  <span>Kecepatan Loop</span>
+                  <span className="font-mono text-cyan-400">
+                    {(selectedClip.image_animation.loopSpeed || 1.0).toFixed(1)}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="3.0"
+                  step="0.1"
+                  value={selectedClip.image_animation.loopSpeed || 1.0}
+                  onChange={(e) => {
+                    const currentAnim: ImageAnimationConfig = selectedClip!.image_animation || {};
+                    updateClipProperties(selectedClip!.id, {
+                      image_animation: {
+                        ...currentAnim,
+                        loopSpeed: parseFloat(e.target.value),
+                      },
+                    });
+                  }}
+                  className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-cyan-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Animasi Keluar (Out Motion) */}
+          <div className="pt-2 border-t border-gray-800/80 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] text-gray-300">
+              <label className="font-medium">Animasi Keluar (Out Motion)</label>
+            </div>
+            <select
+              value={selectedClip.image_animation?.outPreset || "none"}
+              onChange={(e) => {
+                const currentAnim: ImageAnimationConfig = selectedClip!.image_animation || {};
+                updateClipProperties(selectedClip!.id, {
+                  image_animation: {
+                    ...currentAnim,
+                    outPreset: e.target.value,
+                    outDuration: currentAnim.outDuration || 0.5,
+                  },
+                });
+              }}
+              className="w-full px-2.5 py-1.5 bg-[#101216] border border-[#272b36] rounded text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              {IMAGE_ANIMATION_OUT_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.icon} {p.name}
+                </option>
+              ))}
+            </select>
+
+            {selectedClip.image_animation?.outPreset && selectedClip.image_animation.outPreset !== "none" && (
+              <div className="pt-1">
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                  <span>Kecepatan / Durasi Keluar</span>
+                  <span className="font-mono text-cyan-400">
+                    {(selectedClip.image_animation.outDuration || 0.5).toFixed(2)}s
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="2.0"
+                  step="0.05"
+                  value={selectedClip.image_animation.outDuration || 0.5}
+                  onChange={(e) => {
+                    const currentAnim: ImageAnimationConfig = selectedClip!.image_animation || {};
+                    updateClipProperties(selectedClip!.id, {
+                      image_animation: {
+                        ...currentAnim,
+                        outDuration: parseFloat(e.target.value),
+                      },
+                    });
+                  }}
+                  className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-cyan-500"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

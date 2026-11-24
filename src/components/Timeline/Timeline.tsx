@@ -4,6 +4,7 @@ import { useTranslation } from "../../stores/i18nStore";
 import InternalAudioEditorModal from "../InternalEditor/InternalAudioEditorModal";
 import InternalImageEditorModal from "../InternalEditor/InternalImageEditorModal";
 import InternalSubtitleEditorModal from "../InternalEditor/InternalSubtitleEditorModal";
+import ImageOverlayModal from "../ImageOverlay/ImageOverlayModal";
 
 const TRACK_STYLES: Record<string, { bg: string; border: string; glow: string; text: string }> = {
   video: { bg: "bg-[#18314a]/90", border: "border-[#2b5d8f]", glow: "shadow-blue-500/20", text: "text-blue-300" },
@@ -55,6 +56,7 @@ export default function Timeline() {
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [editingTrackName, setEditingTrackName] = useState<string>("");
   const [showAddLayerMenu, setShowAddLayerMenu] = useState(false);
+  const [showImageOverlayModal, setShowImageOverlayModal] = useState(false);
   const addLayerMenuRef = useRef<HTMLDivElement>(null);
 
   // Close add layer menu saat klik di luar
@@ -247,6 +249,18 @@ export default function Timeline() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             <span className="text-[11px] font-medium">{t("timeline.delete", "Hapus")}</span>
+          </button>
+
+          <div className="w-px h-3.5 bg-[#252834] mx-0.5" />
+
+          {/* Tombol Tambah Gambar / Stiker Beranimasi */}
+          <button
+            onClick={() => setShowImageOverlayModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#162724] hover:bg-[#1d3531] text-emerald-300 border border-[#276e5f] transition-all shadow-sm"
+            title="Tambah Gambar / Stiker di atas video dengan animasi gerak"
+          >
+            <span className="text-xs">🖼️</span>
+            <span className="text-[11px] font-semibold">+ Gambar / Stiker</span>
           </button>
         </div>
 
@@ -665,6 +679,15 @@ export default function Timeline() {
           clip={editingClipInfo.clip}
           trackType={editingClipInfo.trackType}
           onClose={() => setEditingClipInfo(null)}
+        />
+      )}
+      {/* Modal Tambah Gambar / Stiker Beranimasi */}
+      {showImageOverlayModal && (
+        <ImageOverlayModal
+          onClose={() => setShowImageOverlayModal(false)}
+          onAdded={(newClipId) => {
+            setSelectedClipId(newClipId);
+          }}
         />
       )}
     </div>

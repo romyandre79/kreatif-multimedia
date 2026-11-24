@@ -3,6 +3,7 @@ import { generateElevenLabsSpeech } from "../services/elevenlabs";
 import { generateSynthesizedVoiceWav } from "../services/localTts";
 import { generateNaturalSpeechAudio } from "../services/naturalTts";
 import { optimizeImageToDataUrl, fileToDataUrl, saveProjectToIndexedDB, loadProjectFromIndexedDB } from "../services/persistentMedia";
+import { ImageAnimationConfig } from "../services/imageAnimationPresets";
 
 // --- Types ---
 
@@ -86,6 +87,7 @@ export interface Clip {
   transition_in: Transition | null;
   transition_out: Transition | null;
   text_animation?: TextAnimation | null;
+  image_animation?: ImageAnimationConfig | null;
   volume?: number;
   opacity?: number;
   keyframes?: Keyframe[];

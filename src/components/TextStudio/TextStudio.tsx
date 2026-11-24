@@ -26,11 +26,16 @@ export default function TextStudio() {
   const [searchQuery, setSearchQuery] = useState("");
   const [customText, setCustomText] = useState("");
 
-  // State Tipografi Teks: Jenis Huruf, Bold, Italic, Underline
+  // State Tipografi Teks: Jenis Huruf, Bold, Italic, Underline, Strike, TextCase, Align, Stroke
   const [fontFamily, setFontFamily] = useState<string>("Arial, sans-serif");
   const [isBold, setIsBold] = useState<boolean>(true);
   const [isItalic, setIsItalic] = useState<boolean>(false);
   const [isUnderline, setIsUnderline] = useState<boolean>(false);
+  const [isStrikethrough, setIsStrikethrough] = useState<boolean>(false);
+  const [textCase, setTextCase] = useState<"none" | "uppercase" | "lowercase" | "capitalize">("none");
+  const [textAlign, setTextAlign] = useState<"center" | "left" | "right">("center");
+  const [strokeWidth, setStrokeWidth] = useState<number>(0);
+  const [strokeColor, setStrokeColor] = useState<string>("#000000");
 
   // Daftar Font Sistem Operasi
   const [osFontList, setOsFontList] = useState<{ label: string; value: string }[]>(COMMON_SYSTEM_FONTS);
@@ -107,7 +112,13 @@ export default function TextStudio() {
     }
     if (!subTrack) return;
 
-    const textToInsert = customText.trim() || preset.defaultText;
+    let textToInsert = customText.trim() || preset.defaultText;
+    if (textCase === "uppercase") textToInsert = textToInsert.toUpperCase();
+    else if (textCase === "lowercase") textToInsert = textToInsert.toLowerCase();
+    else if (textCase === "capitalize") {
+      textToInsert = textToInsert.replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
     const clipDuration = Math.max(3.0, (preset.duration || 0.6) * 3);
 
     addClipToTrack(subTrack.id, {
@@ -124,6 +135,11 @@ export default function TextStudio() {
         isBold,
         isItalic,
         isUnderline,
+        isStrikethrough,
+        textCase,
+        textAlign,
+        strokeWidth: strokeWidth > 0 ? strokeWidth : preset.style.strokeWidth || 0,
+        strokeColor: strokeColor || preset.style.strokeColor || "#000000",
       },
       text_animation: {
         preset: preset.id,
@@ -168,200 +184,288 @@ export default function TextStudio() {
           />
         </div>
 
-        {/* Toolbar Tipografi & Font OS */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-[#12141a] border border-[#232733] rounded-lg">
-          {/* Custom Font Picker dengan Live Bentuk Font */}
-          <div className="flex-1 min-w-[150px]">
-            <FontDropdownPicker
-              value={fontFamily}
-              options={osFontList}
-              onChange={(val) => setFontFamily(val)}
-            />
-          </div>
-
-          {/* Toggle Gaya Huruf (B, I, U) */}
-          <div className="flex items-center gap-0.5 shrink-0 bg-[#1b1e28] p-0.5 rounded border border-gray-700/70">
-            <button
-              type="button"
-              onClick={() => setIsBold(!isBold)}
-              className={`w-6 h-6 flex items-center justify-center font-bold text-xs rounded transition-colors ${
-                isBold ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
-              }`}
-              title="Tebal (Bold)"
-            >
-              B
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsItalic(!isItalic)}
-              className={`w-6 h-6 flex items-center justify-center italic text-xs rounded transition-colors font-serif ${
-                isItalic ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
-              }`}
-              title="Miring (Italic)"
-            >
-              I
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsUnderline(!isUnderline)}
-              className={`w-6 h-6 flex items-center justify-center underline text-xs rounded transition-colors ${
-                isUnderline ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
-              }`}
-              title="Garis Bawah (Underline)"
-            >
-              U
-            </button>
-          </div>
-        </div>
-
-        {/* Search Input & Button Buat Animasi Baru */}
-        <div className="flex items-center gap-1.5">
-          <input
-            type="text"
-            placeholder="Cari dari 50+ preset animasi..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-2.5 py-1.5 bg-[#0e1014] border border-[#232733] rounded-lg text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setEditingCustomAnim(null);
-              setShowCustomModal(true);
-            }}
-            className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-md transition-all shrink-0"
-            title="Buat animasi teks kustom Anda sendiri (atur arah geser, zoom, rotate, bounce, durasi)"
-          >
-            <span>🪄</span> + Animasi Sendiri
-          </button>
-          <span className="px-2 py-1.5 bg-[#181a22] border border-[#252834] rounded-lg text-[10px] font-mono text-cyan-400 shrink-0">
-            {filteredPresets.length}
-          </span>
-        </div>
-
-        {/* Categories Horizontal Scroller */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px]">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`px-2 py-1 rounded font-medium shrink-0 transition-colors ${activeCategory === cat.id
-                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                : "bg-[#14161d] text-gray-400 hover:text-gray-200 border border-[#21242e]"
-                }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Preset List Container */}
-      <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
-        {filteredPresets.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 rounded-xl bg-[#0f1116] border border-[#1d202b]">
-            <p className="text-2xl mb-1">🔍</p>
-            <p className="text-xs font-semibold text-gray-300">Preset tidak ditemukan</p>
-            <p className="text-[10px] mt-1 text-gray-500">
-              Coba cari dengan kata kunci lain atau pilih Semua Kategori.
-            </p>
-          </div>
-        ) : (
-          filteredPresets.map((preset) => {
-            const previewTextToRender = customText.trim() || preset.defaultText;
-            return (
-              <div
-                key={preset.id}
-                className="p-2.5 rounded-xl bg-[#13151c] border border-[#20232e] hover:border-cyan-500/40 transition-all flex flex-col gap-2 group"
-              >
-                {/* Visual Preview Box */}
-                <div
-                  className="p-2.5 rounded-lg text-center flex items-center justify-center transition-all overflow-hidden border border-[#232733]"
-                  style={{
-                    backgroundColor: preset.style.backgroundColor || "#000000",
-                    boxShadow: preset.style.shadowColor
-                      ? `0 0 14px ${preset.style.shadowColor}`
-                      : undefined,
-                  }}
-                >
-                  <span
-                    className="truncate max-w-[240px]"
-                    style={{
-                      fontFamily: fontFamily || preset.style.fontFamily || "sans-serif",
-                      fontWeight: isBold ? "bold" : "normal",
-                      fontStyle: isItalic ? "italic" : "normal",
-                      textDecoration: isUnderline ? "underline" : "none",
-                      color: preset.style.color || "#ffffff",
-                      fontSize: "13px",
-                    }}
-                  >
-                    {previewTextToRender}
-                  </span>
+            {/* Toolbar Tipografi & Font OS Lengkap (Bold, Italic, Underline, Strike, Align, Case, Stroke) */}
+            <div className="space-y-1.5 p-1.5 bg-[#12141a] border border-[#232733] rounded-lg">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Custom Font Picker dengan Live Bentuk Font */}
+                <div className="flex-1 min-w-[150px]">
+                  <FontDropdownPicker
+                    value={fontFamily}
+                    options={osFontList}
+                    onChange={(val) => setFontFamily(val)}
+                  />
                 </div>
 
-                {/* Preset Info */}
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1 mr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{preset.previewIcon}</span>
-                      <h4 className="font-semibold text-gray-200 text-xs truncate">
-                        {preset.name}
-                      </h4>
-                    </div>
-                    <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">
-                      {preset.description}
-                    </p>
-                  </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
-                    {preset.duration}s
-                  </span>
-                </div>
-
-                {/* Actions: Insert into Timeline & Custom Action Controls */}
-                <div className="flex items-center gap-1.5 pt-1 border-t border-[#1b1e28]">
+                {/* Toggle Gaya Huruf (B, I, U, S) */}
+                <div className="flex items-center gap-0.5 shrink-0 bg-[#1b1e28] p-0.5 rounded border border-gray-700/70">
                   <button
-                    onClick={() => handleInsertTextToTimeline(preset)}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white text-[11px] font-semibold transition-all shadow-sm shadow-cyan-950/40 flex items-center justify-center gap-1.5"
+                    type="button"
+                    onClick={() => setIsBold(!isBold)}
+                    className={`w-6 h-6 flex items-center justify-center font-bold text-xs rounded transition-colors ${isBold ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+                      }`}
+                    title="Tebal (Bold)"
                   >
-                    <span>➕</span>
-                    <span>Insert ke Timeline</span>
+                    B
                   </button>
-
-                  {/* Tombol Hapus jika ini animasi kustom buatan user */}
-                  {preset.category === "custom" && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm(`Hapus animasi "${preset.name}"?`)) {
-                          deleteCustomTextAnimation(preset.id);
-                          reloadCustomAnimations();
-                        }
-                      }}
-                      className="p-1.5 bg-[#1a1c24] hover:bg-red-950/80 hover:text-red-300 border border-gray-700/60 rounded-lg text-gray-400 text-xs transition-colors"
-                      title="Hapus animasi kustom ini"
-                    >
-                      🗑️
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsItalic(!isItalic)}
+                    className={`w-6 h-6 flex items-center justify-center italic text-xs rounded transition-colors font-serif ${isItalic ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+                      }`}
+                    title="Miring (Italic)"
+                  >
+                    I
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsUnderline(!isUnderline)}
+                    className={`w-6 h-6 flex items-center justify-center underline text-xs rounded transition-colors ${isUnderline ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+                      }`}
+                    title="Garis Bawah (Underline)"
+                  >
+                    U
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsStrikethrough(!isStrikethrough)}
+                    className={`w-6 h-6 flex items-center justify-center line-through text-xs rounded transition-colors ${isStrikethrough ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+                      }`}
+                    title="Coret Teks (Strikethrough)"
+                  >
+                    S
+                  </button>
                 </div>
               </div>
-            );
-          })
-        )}
-      </div>
 
-      {/* Modal Custom Text Animation Builder */}
-      {showCustomModal && (
-        <CustomTextAnimationModal
-          initialConfig={editingCustomAnim}
-          onClose={() => setShowCustomModal(false)}
-          onSaved={() => {
-            reloadCustomAnimations();
-            setActiveCategory("custom");
-          }}
-        />
-      )}
-    </div>
-  );
+                {/* Baris Kedua: Text Alignment, Capitalization, dan Stroke Border */}
+                <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-gray-800/80 text-[10px]">
+                  {/* Text Alignment */}
+                  <div className="flex items-center gap-0.5 bg-[#1b1e28] p-0.5 rounded border border-gray-700/70">
+                    <button
+                      type="button"
+                      onClick={() => setTextAlign("left")}
+                      className={`px-1.5 py-0.5 rounded ${textAlign === "left" ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"}`}
+                      title="Rata Kiri"
+                    >
+                      ⫷ Kiri
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTextAlign("center")}
+                      className={`px-1.5 py-0.5 rounded ${textAlign === "center" ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"}`}
+                      title="Rata Tengah"
+                    >
+                      ≡ Tengah
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTextAlign("right")}
+                      className={`px-1.5 py-0.5 rounded ${textAlign === "right" ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"}`}
+                      title="Rata Kanan"
+                    >
+                      Kanan ⫸
+                    </button>
+                  </div>
+
+                  {/* Text Case Mode */}
+                  <div className="flex items-center gap-0.5 bg-[#1b1e28] p-0.5 rounded border border-gray-700/70 font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setTextCase(textCase === "uppercase" ? "none" : "uppercase")}
+                      className={`px-1.5 py-0.5 rounded ${textCase === "uppercase" ? "bg-cyan-600 text-white font-bold" : "text-gray-400 hover:text-white"}`}
+                      title="Huruf Kapital Semua (UPPERCASE)"
+                    >
+                      AA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTextCase(textCase === "lowercase" ? "none" : "lowercase")}
+                      className={`px-1.5 py-0.5 rounded ${textCase === "lowercase" ? "bg-cyan-600 text-white font-bold" : "text-gray-400 hover:text-white"}`}
+                      title="Huruf Kecil Semua (lowercase)"
+                    >
+                      aa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTextCase(textCase === "capitalize" ? "none" : "capitalize")}
+                      className={`px-1.5 py-0.5 rounded ${textCase === "capitalize" ? "bg-cyan-600 text-white font-bold" : "text-gray-400 hover:text-white"}`}
+                      title="Kapital Huruf Pertama Tiap Kata"
+                    >
+                      Aa
+                    </button>
+                  </div>
+
+                  {/* Stroke / Garis Luar Huruf */}
+                  <div className="flex items-center gap-1 bg-[#1b1e28] px-1.5 py-0.5 rounded border border-gray-700/70 text-gray-400">
+                    <span>Garis:</span>
+                    <input
+                      type="color"
+                      value={strokeColor}
+                      onChange={(e) => setStrokeColor(e.target.value)}
+                      className="w-4 h-4 bg-transparent cursor-pointer rounded"
+                      title="Warna Stroke Garis Luar"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setStrokeWidth(strokeWidth === 0 ? 3 : strokeWidth === 3 ? 6 : 0)}
+                      className={`px-1 py-0.2 rounded border font-mono ${strokeWidth > 0 ? "border-cyan-500 text-cyan-300 bg-cyan-950/60" : "border-gray-700 text-gray-500"
+                        }`}
+                      title="Ketebalan Garis Luar (Outline Stroke)"
+                    >
+                      {strokeWidth === 0 ? "Off" : `${strokeWidth}px`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search Input & Button Buat Animasi Baru */}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  placeholder="Cari dari 50+ preset animasi..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 px-2.5 py-1.5 bg-[#0e1014] border border-[#232733] rounded-lg text-gray-200 text-xs focus:border-cyan-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCustomAnim(null);
+                    setShowCustomModal(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-md transition-all shrink-0"
+                  title="Buat animasi teks kustom Anda sendiri (atur arah geser, zoom, rotate, bounce, durasi)"
+                >
+                  <span>🪄</span> + Animasi Sendiri
+                </button>
+                <span className="px-2 py-1.5 bg-[#181a22] border border-[#252834] rounded-lg text-[10px] font-mono text-cyan-400 shrink-0">
+                  {filteredPresets.length}
+                </span>
+              </div>
+
+              {/* Categories Horizontal Scroller */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px]">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`px-2 py-1 rounded font-medium shrink-0 transition-colors ${activeCategory === cat.id
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                      : "bg-[#14161d] text-gray-400 hover:text-gray-200 border border-[#21242e]"
+                      }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preset List Container */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
+              {filteredPresets.length === 0 ? (
+                <div className="p-6 text-center text-gray-500 rounded-xl bg-[#0f1116] border border-[#1d202b]">
+                  <p className="text-2xl mb-1">🔍</p>
+                  <p className="text-xs font-semibold text-gray-300">Preset tidak ditemukan</p>
+                  <p className="text-[10px] mt-1 text-gray-500">
+                    Coba cari dengan kata kunci lain atau pilih Semua Kategori.
+                  </p>
+                </div>
+              ) : (
+                filteredPresets.map((preset) => {
+                  const previewTextToRender = customText.trim() || preset.defaultText;
+                  return (
+                    <div
+                      key={preset.id}
+                      className="p-2.5 rounded-xl bg-[#13151c] border border-[#20232e] hover:border-cyan-500/40 transition-all flex flex-col gap-2 group"
+                    >
+                      {/* Visual Preview Box */}
+                      <div
+                        className="p-2.5 rounded-lg text-center flex items-center justify-center transition-all overflow-hidden border border-[#232733]"
+                        style={{
+                          backgroundColor: preset.style.backgroundColor || "#000000",
+                          boxShadow: preset.style.shadowColor
+                            ? `0 0 14px ${preset.style.shadowColor}`
+                            : undefined,
+                        }}
+                      >
+                        <span
+                          className="truncate max-w-[240px]"
+                          style={{
+                            fontFamily: fontFamily || preset.style.fontFamily || "sans-serif",
+                            fontWeight: isBold ? "bold" : "normal",
+                            fontStyle: isItalic ? "italic" : "normal",
+                            textDecoration: isUnderline ? "underline" : "none",
+                            color: preset.style.color || "#ffffff",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {previewTextToRender}
+                        </span>
+                      </div>
+
+                      {/* Preset Info */}
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0 flex-1 mr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm">{preset.previewIcon}</span>
+                            <h4 className="font-semibold text-gray-200 text-xs truncate">
+                              {preset.name}
+                            </h4>
+                          </div>
+                          <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">
+                            {preset.description}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
+                          {preset.duration}s
+                        </span>
+                      </div>
+
+                      {/* Actions: Insert into Timeline & Custom Action Controls */}
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-[#1b1e28]">
+                        <button
+                          onClick={() => handleInsertTextToTimeline(preset)}
+                          className="flex-1 py-1.5 px-3 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white text-[11px] font-semibold transition-all shadow-sm shadow-cyan-950/40 flex items-center justify-center gap-1.5"
+                        >
+                          <span>➕</span>
+                          <span>Insert ke Timeline</span>
+                        </button>
+
+                        {/* Tombol Hapus jika ini animasi kustom buatan user */}
+                        {preset.category === "custom" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Hapus animasi "${preset.name}"?`)) {
+                                deleteCustomTextAnimation(preset.id);
+                                reloadCustomAnimations();
+                              }
+                            }}
+                            className="p-1.5 bg-[#1a1c24] hover:bg-red-950/80 hover:text-red-300 border border-gray-700/60 rounded-lg text-gray-400 text-xs transition-colors"
+                            title="Hapus animasi kustom ini"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Custom Text Animation Builder */}
+            {showCustomModal && (
+              <CustomTextAnimationModal
+                initialConfig={editingCustomAnim}
+                onClose={() => setShowCustomModal(false)}
+                onSaved={() => {
+                  reloadCustomAnimations();
+                  setActiveCategory("custom");
+                }}
+              />
+            )}
+          </div>
+          );
 }

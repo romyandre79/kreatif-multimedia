@@ -36,6 +36,11 @@ export default function CustomTextAnimationModal({
   const [bgColor, setBgColor] = useState(initialConfig?.style?.backgroundColor || "rgba(0,0,0,0.85)");
   const [isBold, setIsBold] = useState(initialConfig?.style?.isBold !== undefined ? initialConfig.style.isBold : true);
   const [isItalic, setIsItalic] = useState(Boolean(initialConfig?.style?.isItalic));
+  const [isUnderline, setIsUnderline] = useState(Boolean(initialConfig?.style?.isUnderline));
+  const [isStrikethrough, setIsStrikethrough] = useState(Boolean(initialConfig?.style?.isStrikethrough));
+  const [textCase, setTextCase] = useState<"none" | "uppercase" | "lowercase" | "capitalize">(initialConfig?.style?.textCase || "none");
+  const [strokeWidth, setStrokeWidth] = useState<number>(initialConfig?.style?.strokeWidth || 0);
+  const [strokeColor, setStrokeColor] = useState<string>(initialConfig?.style?.strokeColor || "#000000");
   const [glowColor, setGlowColor] = useState(initialConfig?.style?.shadowColor || "#0284c7");
   const [glowBlur, setGlowBlur] = useState(initialConfig?.style?.shadowBlur || 12);
 
@@ -118,6 +123,11 @@ export default function CustomTextAnimationModal({
         shadowBlur: glowBlur,
         isBold,
         isItalic,
+        isUnderline,
+        isStrikethrough,
+        textCase,
+        strokeWidth,
+        strokeColor,
       },
     };
 
@@ -171,6 +181,9 @@ export default function CustomTextAnimationModal({
                 fontFamily: fontFamily,
                 fontWeight: isBold ? "bold" : "normal",
                 fontStyle: isItalic ? "italic" : "normal",
+                textDecoration: `${isUnderline ? "underline" : ""} ${isStrikethrough ? "line-through" : ""}`.trim() || "none",
+                textTransform: textCase !== "none" ? textCase : "none",
+                WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : "none",
                 boxShadow: (glowBlur + evalResult.shadowBlurBonus) > 0 ? `0 0 ${glowBlur + evalResult.shadowBlurBonus}px ${glowColor}` : "none",
                 transition: "none",
               }}
@@ -367,26 +380,90 @@ export default function CustomTextAnimationModal({
                 </div>
               </div>
 
-              {/* Bold / Italic Toggle */}
-              <div className="flex items-center gap-2 pt-1">
+              {/* Bold / Italic / Underline / Strike Toggle */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <button
                   type="button"
                   onClick={() => setIsBold(!isBold)}
-                  className={`px-3 py-1 rounded border text-xs font-bold transition-colors ${
+                  className={`px-2.5 py-1 rounded border text-xs font-bold transition-colors ${
                     isBold ? "bg-cyan-600 border-cyan-500 text-white" : "bg-[#1b1e2a] border-gray-700 text-gray-400"
                   }`}
+                  title="Tebal (Bold)"
                 >
-                  B (Bold)
+                  B
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsItalic(!isItalic)}
-                  className={`px-3 py-1 rounded border text-xs italic font-serif transition-colors ${
+                  className={`px-2.5 py-1 rounded border text-xs italic font-serif transition-colors ${
                     isItalic ? "bg-cyan-600 border-cyan-500 text-white" : "bg-[#1b1e2a] border-gray-700 text-gray-400"
                   }`}
+                  title="Miring (Italic)"
                 >
-                  I (Italic)
+                  I
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setIsUnderline(!isUnderline)}
+                  className={`px-2.5 py-1 rounded border text-xs underline transition-colors ${
+                    isUnderline ? "bg-cyan-600 border-cyan-500 text-white" : "bg-[#1b1e2a] border-gray-700 text-gray-400"
+                  }`}
+                  title="Garis Bawah (Underline)"
+                >
+                  U
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsStrikethrough(!isStrikethrough)}
+                  className={`px-2.5 py-1 rounded border text-xs line-through transition-colors ${
+                    isStrikethrough ? "bg-cyan-600 border-cyan-500 text-white" : "bg-[#1b1e2a] border-gray-700 text-gray-400"
+                  }`}
+                  title="Coret Teks (Strikethrough)"
+                >
+                  S
+                </button>
+
+                {/* Capitalization */}
+                <div className="flex items-center gap-0.5 ml-auto bg-[#1b1e2a] p-0.5 rounded border border-gray-700 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setTextCase(textCase === "uppercase" ? "none" : "uppercase")}
+                    className={`px-1.5 py-0.5 rounded ${textCase === "uppercase" ? "bg-cyan-600 text-white font-bold" : "text-gray-400"}`}
+                    title="UPPERCASE"
+                  >
+                    AA
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTextCase(textCase === "lowercase" ? "none" : "lowercase")}
+                    className={`px-1.5 py-0.5 rounded ${textCase === "lowercase" ? "bg-cyan-600 text-white font-bold" : "text-gray-400"}`}
+                    title="lowercase"
+                  >
+                    aa
+                  </button>
+                </div>
+              </div>
+
+              {/* Stroke / Outline */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-800 text-[11px] text-gray-400">
+                <span>Garis Luar (Stroke):</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={strokeColor}
+                    onChange={(e) => setStrokeColor(e.target.value)}
+                    className="w-5 h-5 bg-transparent rounded cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setStrokeWidth(strokeWidth === 0 ? 3 : strokeWidth === 3 ? 6 : 0)}
+                    className={`px-2 py-0.5 rounded border text-xs font-mono ${
+                      strokeWidth > 0 ? "border-cyan-500 text-cyan-300 bg-cyan-950/60" : "border-gray-700 text-gray-500"
+                    }`}
+                  >
+                    {strokeWidth === 0 ? "Off" : `${strokeWidth}px`}
+                  </button>
+                </div>
               </div>
 
               {/* Glow / Shadow */}

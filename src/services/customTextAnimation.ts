@@ -81,6 +81,12 @@ export interface CustomTextAnimationConfig {
     isBold?: boolean;
     isItalic?: boolean;
     isUnderline?: boolean;
+    isStrikethrough?: boolean;
+    textCase?: "none" | "uppercase" | "lowercase" | "capitalize";
+    textAlign?: "center" | "left" | "right";
+    letterSpacing?: number;
+    strokeColor?: string;
+    strokeWidth?: number;
   };
 }
 

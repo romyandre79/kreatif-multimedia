@@ -143,6 +143,38 @@ export const BUILT_IN_TRANSITIONS: CustomTransitionPreset[] = [
     easing: "easeInOut",
     isBuiltIn: true,
   },
+  // --- CAPCUT TREND TRANSITIONS (Built-in) ---
+  {
+    id: "glitch_shake",
+    name: "Cyber Glitch Shake",
+    icon: "⚡",
+    baseEffect: "glitch",
+    description: "Distorsi digital getar acak yang viral di CapCut",
+    defaultDuration: 0.4,
+    easing: "easeInOut",
+    isBuiltIn: true,
+  },
+  {
+    id: "flip_card_3d",
+    name: "3D Flip Board",
+    icon: "🃏",
+    baseEffect: "flip",
+    description: "Pembalikan 3 dimensi antar adegan",
+    defaultDuration: 0.5,
+    easing: "easeInOut",
+    isBuiltIn: true,
+  },
+  {
+    id: "spin_zoom_fast",
+    name: "Twister Spin Zoom",
+    icon: "🌪️",
+    baseEffect: "rotate",
+    rotationDegrees: 360,
+    description: "Perputaran cepat satu putaran penuh menuju adegan baru",
+    defaultDuration: 0.55,
+    easing: "easeInOut",
+    isBuiltIn: true,
+  },
 ];
 
 const STORAGE_KEY = "kreatif_custom_video_transitions";

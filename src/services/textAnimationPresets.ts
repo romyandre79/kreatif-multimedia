@@ -15,6 +15,10 @@ export interface TextAnimationPreset {
     shadowBlur?: number;
     isBold?: boolean;
     isItalic?: boolean;
+    isUnderline?: boolean;
+    isStrikethrough?: boolean;
+    textCase?: "none" | "uppercase" | "lowercase" | "capitalize";
+    textAlign?: "center" | "left" | "right";
     letterSpacing?: number;
     strokeColor?: string;
     strokeWidth?: number;
@@ -586,5 +590,107 @@ export const TEXT_ANIMATION_PRESETS: TextAnimationPreset[] = [
     duration: 0.45,
     previewIcon: "💬",
     style: { color: "#1e1b4b", backgroundColor: "#67e8f9", isBold: true, fontSize: 36 },
+  },
+
+  // --- 9. CAPCUT VIRAL STYLE PRESETS (56-70) ---
+  {
+    id: "capcut_zoom_slam",
+    name: "CapCut Zoom Slam",
+    category: "creative",
+    description: "Zoom raksasa membanting ke depan lalu snap pas di tengah (Gaya khas intro TikTok)",
+    defaultText: "POW! PERHATIKAN INI!",
+    duration: 0.35,
+    previewIcon: "⚡",
+    style: { color: "#ffffff", backgroundColor: "#dc2626", isBold: true, fontSize: 38 },
+  },
+  {
+    id: "capcut_slide_blur",
+    name: "Motion Blur Slide",
+    category: "slide",
+    description: "Meluncur super cepat dengan simulasi blur kecepatan",
+    defaultText: "FLASH NEWS HARI INI",
+    duration: 0.4,
+    previewIcon: "🏎️",
+    style: { color: "#38bdf8", backgroundColor: "rgba(15,23,42,0.9)", isBold: true, fontSize: 32 },
+  },
+  {
+    id: "capcut_spring_up",
+    name: "Elastic Spring Up",
+    category: "bounce",
+    description: "Melesat dari bawah melampaui target lalu bergetar kenyal",
+    defaultText: "Cek Rahasianya di Sini!",
+    duration: 0.55,
+    previewIcon: "🪀",
+    style: { color: "#facc15", backgroundColor: "rgba(0,0,0,0.85)", isBold: true, fontSize: 34 },
+  },
+  {
+    id: "capcut_karaoke_glow",
+    name: "CapCut Auto-Caption Glow",
+    category: "glow",
+    description: "Teks subtitle dinamis dengan pulse zoom aktif per kata",
+    defaultText: "DENGARKAN APA KATA MEREKA",
+    duration: 0.45,
+    previewIcon: "🎤",
+    style: { color: "#22c55e", backgroundColor: "rgba(0,0,0,0.9)", shadowColor: "#4ade80", shadowBlur: 18, isBold: true, fontSize: 32 },
+  },
+  {
+    id: "capcut_flip_card",
+    name: "3D Flip Board",
+    category: "rotate",
+    description: "Membalik dari atas seperti papan flip bandara",
+    defaultText: "FAKTA TERBARU 2026",
+    duration: 0.5,
+    previewIcon: "🃏",
+    style: { color: "#ffffff", backgroundColor: "#4f46e5", isBold: true, fontSize: 32 },
+  },
+  {
+    id: "capcut_shiver_shake",
+    name: "Earthquake Shiver Shake",
+    category: "creative",
+    description: "Guncangan gempa intens saat teks pertama kali mendarat",
+    defaultText: "KAGET BANGET PARAH!",
+    duration: 0.4,
+    previewIcon: "🫨",
+    style: { color: "#f43f5e", backgroundColor: "#18181b", shadowColor: "#e11d48", shadowBlur: 14, isBold: true, fontSize: 36 },
+  },
+  {
+    id: "capcut_pendulum_swing",
+    name: "Pendulum Drop Swing",
+    category: "bounce",
+    description: "Jatuh berayun anggun dari atas ke bawah",
+    defaultText: "Rekomendasi Terbaik",
+    duration: 0.65,
+    previewIcon: "🎪",
+    style: { color: "#fef08a", backgroundColor: "rgba(30,27,75,0.85)", isBold: true, fontSize: 30 },
+  },
+  {
+    id: "capcut_typewriter_cursor",
+    name: "CapCut Modern Typewriter",
+    category: "cinema",
+    description: "Ketik huruf per huruf super cepat dengan cursor aktif",
+    defaultText: "Tips penting yang wajib kamu coba...",
+    duration: 0.7,
+    previewIcon: "⌨️",
+    style: { color: "#e2e8f0", backgroundColor: "rgba(0,0,0,0.8)", isBold: true, fontSize: 28 },
+  },
+  {
+    id: "capcut_spiral_vortex",
+    name: "Spiral Vortex In",
+    category: "rotate",
+    description: "Menghisap berputar spiral dari dimensi luar",
+    defaultText: "PORTAL MISTERIUS",
+    duration: 0.6,
+    previewIcon: "🌀",
+    style: { color: "#c084fc", backgroundColor: "rgba(24,24,27,0.9)", shadowColor: "#a855f7", shadowBlur: 16, isBold: true, fontSize: 32 },
+  },
+  {
+    id: "capcut_neon_twitch",
+    name: "Neon Light Flicker",
+    category: "glow",
+    description: "Lampu neon jalanan berkedip-kedip hidup mati",
+    defaultText: "NIGHT CITY VIBES",
+    duration: 0.6,
+    previewIcon: "💡",
+    style: { color: "#f472b6", backgroundColor: "#020617", shadowColor: "#ec4899", shadowBlur: 20, isBold: true, fontSize: 34 },
   },
 ];

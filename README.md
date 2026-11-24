@@ -21,14 +21,25 @@ Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (W
 - Text-to-Speech otomatis (Lokal: Piper TTS/Kokoro, Cloud: ElevenLabs/OpenAI TTS).
 - Sinkronisasi instan naskah ke timeline audio & subtitle track.
 
-### 3. Text Studio & Tipografi Lengkap (55+ Preset & Custom Builder)
+### 3. Text Studio & Tipografi Lengkap (70+ Preset CapCut Viral & Custom Builder)
+- **Koleksi 70 Preset Animasi Teks Siap Pakai (Termasuk CapCut Viral Trends)**:
+  - *Fade & Blur*: Classic Fade, Blur Reveal, Soft Glow, Black Box.
+  - *Slide & Motion*: Motion Blur Slide, Elastic Overshoot, Diagonal Drift.
+  - *Zoom & Impact*: **CapCut Zoom Slam** (Membanting ke layar ala intro TikTok), Snap Zoom, Heavy Rebound.
+  - *Bounce & Spring*: **Elastic Spring Up** (Melenting kenyal), Cartoon Boing, Pendulum Swing.
+  - *Caption & Voice Sync*: **CapCut Auto-Caption Glow** (Pulse dinamis mengikuti ritme bicara), **Modern Typewriter with Cursor** (Ketik cepat dengan kursor aktif).
+  - *Dynamic 3D & Cyber*: **3D Flip Board** (Pembalikan kartu), **Earthquake Shiver Shake** (Guncangan gempa intens), **Neon Light Flicker** (Kedip lampu neon), **Spiral Vortex In**.
 - **Custom Text Animation Builder**:
-  - **20 Pilihan Motion Type Masuk**: Fade, Slide Up/Down/Left/Right/Diagonal, Zoom In/Out, Heavy Bounce Drop, Elastic Spring Pop, Rotate CW/CCW, Flip Horizontal/Vertical, Typewriter, Glitch & Shake, Swing In (Pendulum), Spiral Vortex, Blur Reveal, Slam Zoom.
-  - **20 Pilihan Loop Animation Kontinu**: Gentle Pulse, Heartbeat, Floating Bobbing, Horizontal Drift, Slow/Fast Spin, Playful Wiggle, Jelly Squish, Shiver/Tremble, Pendulum, Ocean Wave, Neon Flicker, Strobe Flash, Glitch Twitch, Deep Breathing, Rainbow Cycle, Glow Halo, Circular Orbit, Trampoline Bounce.
+  - **20 Pilihan Motion Type Masuk** & **20 Pilihan Loop Animation Kontinu**.
   - Live Interactive Preview Screen, penyesuaian kurva easing, kecepatan loop, dan styling glow/bayangan kustom.
-- **55 Preset Animasi Teks Bawaan Siap Pakai**: Fade, Slide, Zoom, Bounce, Rotate, Glitch, Cinematic, Typewriter, Pop-up, dll.
 - **Dukungan Font Sistem Operasi (OS Fonts)**: Integrasi Web Local Font Access API untuk membaca dan menggunakan seluruh jenis huruf yang terpasang di komputer pengguna (Windows, macOS, Linux).
-- **Format Tipografi Lengkap**: Bold (Tebal), Italic (Miring), Underline (Garis Bawah), Font Size, Text Color, Background Banner, & Shadow.
+- **Format Tipografi Lengkap & Text Styling**:
+  - **Bold (Tebal)** & **Italic (Miring)**.
+  - **Underline (Garis Bawah)** & **Strikethrough (Coret Garis Tengah)** — digambar presisi di modal preview, Canvas preview, dan video exporter.
+  - **Text Alignment**: Rata Kiri, Rata Tengah, dan Rata Kanan.
+  - **Text Case (Kapitalisasi)**: Normal, `AA` (UPPERCASE), `aa` (lowercase), dan `Aa` (Title Case / Capitalize).
+  - **Text Stroke / Garis Luar**: Kontrol ketebalan border huruf (`Off`, `3px`, `6px`) dan pemilih warna outline untuk teks yang kontras di latar video apapun.
+  - **Font Size, Text Color, Background Banner, & Glow Shadow**.
 - **Live Preview & Animation Loop**: Pratinjau animasi teks dan loop replay interaktif pada editor modal.
 
 ### 4. Audio Vault & SFX Integration
@@ -56,7 +67,19 @@ Aplikasi desktop *Non-Linear Editor (NLE)* modern, ringan, dan cross-platform (W
 - **Undo/Redo**: Riwayat perubahan tak terbatas dengan keyboard shortcut (Ctrl+Z / Ctrl+Shift+Z).
 - **Auto-Stop Playback**: Playback otomatis berhenti tepat di batas akhir klip terakhir timeline.
 
-### 6. Interactive Canvas Preview
+### 6. Image & Sticker Overlay Animation Studio (CapCut Trends)
+- **Sisipkan Gambar/Stiker di atas Video atau Gambar**:
+  - Modal **`+ Gambar / Stiker`** langsung dari timeline dengan tombol 1-klik.
+  - Penyesuaian ukuran (Skala 0.1x - 1.5x) dan koordinat posisi (Offset X, Y).
+  - Pengaturan durasi tampil di timeline (1.0s - 15.0s).
+- **Animasi Gerakan Gambar Lengkap**:
+  - **15 Animasi Masuk (Intro Motion)**: Smooth Fade In, Elastic Pop & Bounce, Zoom In Blast, Slide Up/Down/Left/Right, Twister Spin Zoom, Pendulum Swing In, Card Flip 3D, Rubber Snap, **CapCut Zoom Slam**, **Earthquake Land**, **Diagonal Sway In**.
+  - **11 Gerakan Loop Kontinu**: Floating & Bobbing, Pulse Heartbeat, Slow Rotating Spin, Playful Wiggle, Deep Breathing Scale, Clock Pendulum, Jelly Squish & Bounce, Shine Flash Glint, **TikTok Micro Shiver (Jedag-jedug)**, **3D Wobble Float**.
+  - **10 Animasi Keluar (Out Motion)**: Smooth Fade Out, Zoom Shrink, Fly Up Away, Gravity Fall Down, Slide Left/Right Out, Whirlpool Spin Out, **Glitch Disintegrate**, **Hyper Warp Forward**.
+- **Inspector Control Real-Time**: Konfigurasi ulang preset animasi masuk, loop, keluar, dan durasinya kapan saja melalui panel Inspector klip gambar.
+- **Full Engine Support**: Terintegrasi sinkron pada WebGL Canvas Preview 60 FPS dan Final Video Exporter.
+
+### 7. Interactive Canvas Preview
 - Preview real-time 60 FPS bertenaga WebGL / Canvas.
 - Transformasi visual: Drag, resize, rotate, crop.
 - Pilihan rasio aspek canvas: **16:9** (Landscape), **9:16** (Shorts/Reels/TikTok), **1:1** (Instagram), **4:3**, **21:9** (Cinematic).

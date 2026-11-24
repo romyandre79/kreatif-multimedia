@@ -550,3 +550,23 @@ Mekanisme sistem multi-bahasa terdistribusi dengan kemampuan CRUD kamus terjemah
    - **Update**: Edit terjemahan secara live inline input tanpa perlu reload aplikasi.
    - **Delete**: Hapus bahasa kustom atau teks kunci tertentu.
    - **Reset**: Mengembalikan seluruh kamus ke konfigurasi awal bawaan.
+
+---
+
+## 12. Image & Sticker Overlay Animation Architecture
+
+Sistem animasi visual untuk gambar, logo, dan stiker yang diletakkan di atas video atau background gambar:
+
+1. **Preset Engine (`src/services/imageAnimationPresets.ts`)**:
+   - **Intro Presets**: `pop_bounce`, `fade`, `zoom_in`, `slide_up/down/left/right`, `spin_zoom`, `swing_drop`, `flip_x`, `elastic_snap`.
+   - **Loop Presets**: `floating`, `pulse_heartbeat`, `gentle_spin`, `wiggle`, `breathing`, `pendulum`, `bounce_jelly`, `flash`.
+   - **Outro Presets**: `fade`, `zoom_shrink`, `slide_up/down/left/right`, `spin_out`.
+2. **Evaluasi Transformasi (`evaluateImageAnimation`)**:
+   - Mengkalkulasi `opacity`, `scale`, `offsetX`, `offsetY`, dan `rotation` berdasarkan waktu relatif klip terhadap playhead.
+   - Menggabungkan kurva easing (elastic, cubic ease-out, oscillatory harmonic sinusoidal loop).
+3. **Modal Penambahan Cepat (`src/components/ImageOverlay/ImageOverlayModal.tsx`)**:
+   - Preview visual real-time adegan video dengan overlay gambar yang langsung memutar animasinya secara terus-menerus.
+   - Kontrol ukuran, posisi X/Y, durasi tampil, dan animasi.
+4. **Integrasi Render Pipeline**:
+   - **Canvas Preview (`CanvasPreview.tsx`)**: Mengalikan matriks rotasi, skala, translasi, dan alpha secara berlapis dengan keyframe animator dan transisi klip.
+   - **Final Exporter (`videoExporter.ts`)**: Mengevaluasi animasi gambar secara frame-sinkron saat merender video MP4/WebM.

@@ -77,10 +77,12 @@ export default function Timeline() {
     type: "move" | "trim-left" | "trim-right";
     clipId: string;
     originX: number;
+    originY: number;
     initialStart: number;
     initialEnd: number;
     initialSourceStart?: number;
-    targetTrackId?: string;
+    sourceTrackId: string;
+    sourceTrackType: string;
   } | null>(null);
 
   // State untuk modal Internal Editor saat klip di-double click
@@ -136,7 +138,31 @@ export default function Timeline() {
       if (dragState.type === "move") {
         const rawNewStart = dragState.initialStart + deltaTime;
         const snappedStart = calculateSnappedTime(Math.max(0, rawNewStart), dragState.clipId);
-        updateClipPosition(dragState.clipId, snappedStart, dragState.targetTrackId);
+
+        // Deteksi track tujuan secara vertikal saat user menggeser kursor ke layer lain
+        let targetTrackId = dragState.sourceTrackId;
+        const elUnderCursor = document.elementFromPoint(e.clientX, e.clientY);
+        const trackContainer = elUnderCursor?.closest("[data-track-id]") as HTMLElement | null;
+        if (trackContainer) {
+          const hoveredTrackId = trackContainer.dataset.trackId;
+          const hoveredTrackType = trackContainer.dataset.trackType;
+
+          // Periksa kompatibilitas track:
+          // Audio klip bisa dipindah ke sesama layer audio (atau layer video).
+          // Video/Image klip bisa dipindah ke layer video/image.
+          // Subtitle klip ke layer subtitle.
+          const isAudioCompatible =
+            (dragState.sourceTrackType === "audio" && (hoveredTrackType === "audio" || hoveredTrackType === "video")) ||
+            (dragState.sourceTrackType === "video" && (hoveredTrackType === "video" || hoveredTrackType === "image" || hoveredTrackType === "audio")) ||
+            (dragState.sourceTrackType === "image" && (hoveredTrackType === "image" || hoveredTrackType === "video")) ||
+            (dragState.sourceTrackType === hoveredTrackType);
+
+          if (hoveredTrackId && isAudioCompatible) {
+            targetTrackId = hoveredTrackId;
+          }
+        }
+
+        updateClipPosition(dragState.clipId, snappedStart, targetTrackId);
       } else if (dragState.type === "trim-left") {
         const rawNewStart = dragState.initialStart + deltaTime;
         const snappedStart = calculateSnappedTime(rawNewStart, dragState.clipId);
@@ -543,6 +569,8 @@ export default function Timeline() {
               {tracks.map((track) => (
                 <div
                   key={track.id}
+                  data-track-id={track.id}
+                  data-track-type={track.type}
                   className="h-12 relative border-b border-[#171922] bg-[#0e1014]/60 hover:bg-[#12141a]/60"
                 >
                   {track.clips.map((clip) => {
@@ -572,9 +600,11 @@ export default function Timeline() {
                             type: "move",
                             clipId: clip.id,
                             originX: e.clientX,
+                            originY: e.clientY,
                             initialStart: clip.start,
                             initialEnd: clip.end,
-                            targetTrackId: track.id,
+                            sourceTrackId: track.id,
+                            sourceTrackType: track.type,
                           });
                         }}
                         className={`absolute top-1.5 h-9 rounded-md border text-xs cursor-grab active:cursor-grabbing
@@ -595,9 +625,12 @@ export default function Timeline() {
                               type: "trim-left",
                               clipId: clip.id,
                               originX: e.clientX,
+                              originY: e.clientY,
                               initialStart: clip.start,
                               initialEnd: clip.end,
                               initialSourceStart: clip.source_start || 0,
+                              sourceTrackId: track.id,
+                              sourceTrackType: track.type,
                             });
                           }}
                           className="w-2 h-full cursor-ew-resize bg-black/30 hover:bg-white/40 shrink-0 flex items-center justify-center"
@@ -651,8 +684,11 @@ export default function Timeline() {
                               type: "trim-right",
                               clipId: clip.id,
                               originX: e.clientX,
+                              originY: e.clientY,
                               initialStart: clip.start,
                               initialEnd: clip.end,
+                              sourceTrackId: track.id,
+                              sourceTrackType: track.type,
                             });
                           }}
                           className="w-2 h-full cursor-ew-resize bg-black/30 hover:bg-white/40 shrink-0 flex items-center justify-center"

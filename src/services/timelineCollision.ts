@@ -71,92 +71,98 @@ export function clampNonOverlappingPosition(
 }
 
 /**
- * Otomatis mengatur ulang (repack / ripple) klip-klip di track yang sama
- * ketika sebuah klip digeser ke posisi baru, sehingga jika posisi klip bertukar urutan (swap),
- * klip yang digeser dan klip tetangga otomatis bergeser rapi tanpa tabrakan.
+ * Otomatis mengatur ulang dan menggeser (ripple push / auto-shift) klip-klip lain
+ * jika sebuah klip digeser dan mendarat/menimpa di atas klip lain.
+ * 
+ * Perilaku cerdas:
+ * 1. Jika klip diletakkan di ruang kosong, posisinya langsung ditempatkan di posisi tersebut.
+ * 2. Jika klip menimpa sebagian atau seluruh klip lain, klip yang tertimpa dan seluruh klip di kanannya
+ *    otomatis bergeser ke kanan (ripple push) sebesar durasi klip yang disisipkan/digerakkan.
+ * 3. Klip di sebelah kiri tetap pada posisinya (tidak terganggu).
+ * 4. Mendukung pemindahan di track yang sama maupun saat berpindah ke track baru.
  */
 export function reorderClipsOnTrack(
   clips: Clip[],
   movingClipId: string,
-  newStart: number
+  newStart: number,
+  overrideMovingClip?: Clip
 ): Clip[] {
-  const currentClip = clips.find((c) => c.id === movingClipId);
+  const currentClip = overrideMovingClip || clips.find((c) => c.id === movingClipId);
   if (!currentClip) return clips;
 
-  const duration = currentClip.end - currentClip.start;
+  const duration = Math.max(0.2, currentClip.end - currentClip.start);
+  const targetStart = Math.max(0, newStart);
+  const targetEnd = targetStart + duration;
+
+  // Filter klip lain selain klip yang sedang digeser dan urutkan ascending berdasarkan start time
   const otherClips = clips
     .filter((c) => c.id !== movingClipId)
     .sort((a, b) => a.start - b.start);
 
   if (otherClips.length === 0) {
-    return clips.map((c) =>
-      c.id === movingClipId
-        ? { ...c, start: Math.max(0, newStart), end: Math.max(0, newStart) + duration }
-        : c
-    );
+    return [
+      {
+        ...currentClip,
+        id: movingClipId,
+        start: targetStart,
+        end: targetEnd,
+      },
+    ];
   }
 
-  // Tentukan apakah posisi newStart menimpa klip lain
-  const candidateStart = Math.max(0, newStart);
-  const candidateEnd = candidateStart + duration;
-
-  // Bangun daftar klip dengan urutan baru
-  const updatedClips = [...clips];
-  const movingIndex = updatedClips.findIndex((c) => c.id === movingClipId);
-  if (movingIndex === -1) return clips;
-
-  // Cek apakah klip digeser melewati klip lain untuk melakukan swap/reorder urutan
-  const overlapped = otherClips.find(
-    (c) => candidateStart < c.end - 0.05 && candidateEnd > c.start + 0.05
+  // Periksa apakah targetStart - targetEnd menimpa atau tumpang tindih dengan klip lain
+  const overlappedClip = otherClips.find(
+    (c) => targetStart < c.end - 0.05 && targetEnd > c.start + 0.05
   );
 
-  if (overlapped) {
-    const overlapMid = (overlapped.start + overlapped.end) / 2;
-    const movingMid = candidateStart + duration / 2;
+  let updatedOtherClips = otherClips.map((c) => ({ ...c }));
 
-    if (movingMid >= overlapMid) {
-      // Pindah ke setelah overlapped
-      const targetStart = overlapped.end;
-      updatedClips[movingIndex] = {
-        ...currentClip,
-        start: targetStart,
-        end: targetStart + duration,
-      };
-    } else {
-      // Pindah ke sebelum overlapped
-      const targetStart = Math.max(0, overlapped.start - duration);
-      // Geser overlapped dan klip selanjutnya jika bertabrakan
-      const shiftAmount = (targetStart + duration) - overlapped.start;
-      if (shiftAmount > 0) {
-        for (let i = 0; i < updatedClips.length; i++) {
-          if (updatedClips[i].id !== movingClipId && updatedClips[i].start >= overlapped.start) {
-            const d = updatedClips[i].end - updatedClips[i].start;
-            updatedClips[i] = {
-              ...updatedClips[i],
-              start: updatedClips[i].start + shiftAmount,
-              end: updatedClips[i].start + shiftAmount + d,
-            };
-          }
+  if (overlappedClip) {
+    // Jika klip ditaruh tepat di atas klip lain:
+    // Seluruh klip yang posisinya bersinggungan atau berada di kanannya akan otomatis digeser (push ripple)
+    // sehingga klip yang baru ditaruh mendapatkan ruang persis sebesar durasinya tanpa tumpang tindih.
+    for (let i = 0; i < updatedOtherClips.length; i++) {
+      const c = updatedOtherClips[i];
+      // Jika klip ini tertimpa atau berada di kanan posisi targetStart
+      if (c.end > targetStart + 0.05) {
+        if (c.start < targetStart) {
+          // Jika klip sebelumnya tertimpa ujung ekornya:
+          // Klip ini dan selanjutnya digeser agar start-nya mulai setelah targetEnd
+          const clipDur = c.end - c.start;
+          c.start = targetEnd;
+          c.end = targetEnd + clipDur;
+        } else {
+          // Klip yang memang berada di kanan digeser sebesar durasi klip yang masuk
+          const clipDur = c.end - c.start;
+          const shiftStart = Math.max(c.start + duration, targetEnd);
+          c.start = shiftStart;
+          c.end = shiftStart + clipDur;
         }
       }
-      updatedClips[movingIndex] = {
-        ...currentClip,
-        start: targetStart,
-        end: targetStart + duration,
-      };
     }
-    return updatedClips;
+
+    // Rapikan kembali agar tidak ada rantai tabrakan bertingkat pada klip-klip yang digeser
+    for (let i = 0; i < updatedOtherClips.length - 1; i++) {
+      const curr = updatedOtherClips[i];
+      const next = updatedOtherClips[i + 1];
+      if (next.start < curr.end) {
+        const nextDur = next.end - next.start;
+        next.start = curr.end;
+        next.end = curr.end + nextDur;
+      }
+    }
   }
 
-  // Jika tidak menimpa klip manapun (berada di ruang kosong), langsung set posisinya
-  const safeStart = clampNonOverlappingPosition(clips, movingClipId, newStart, duration);
-  updatedClips[movingIndex] = {
+  const placedClip: Clip = {
     ...currentClip,
-    start: safeStart,
-    end: safeStart + duration,
+    id: movingClipId,
+    start: targetStart,
+    end: targetEnd,
   };
 
-  return updatedClips;
+  // Gabungkan dan urutkan kembali semua klip
+  const allClips = [...updatedOtherClips, placedClip].sort((a, b) => a.start - b.start);
+  return allClips;
 }
 
 /**

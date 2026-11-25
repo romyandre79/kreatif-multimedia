@@ -5,7 +5,7 @@ import { generateNaturalSpeechAudio } from "../services/naturalTts";
 import { optimizeImageToDataUrl, fileToDataUrl, saveProjectToIndexedDB, loadProjectFromIndexedDB } from "../services/persistentMedia";
 import { ImageAnimationConfig } from "../services/imageAnimationPresets";
 import { CameraMotionConfig, DEFAULT_CAMERA_MOTION } from "../services/cameraMotion";
-import { clampNonOverlappingPosition, clampNonOverlappingTrim, reorderClipsOnTrack } from "../services/timelineCollision";
+import { clampNonOverlappingTrim, reorderClipsOnTrack } from "../services/timelineCollision";
 import { addCustomAudioToStorage, ScrapedAudioItem } from "../services/audioScraper";
 
 // --- Types ---
@@ -985,7 +985,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       });
     }
 
-    // 2. Masukkan Media Visual (Image / Video) jika scene memiliki media visual
+    // 2. Masukkan Media Visual (Image / Video) HANYA jika scene memang memiliki media_url visual
+    // PENTING: Audio TTS tidak boleh dan tidak pernah dimasukkan ke track gambar!
+    // Avatar karakter HANYA dimasukkan jika media_type secara eksplisit "image" atau scene memiliki media_url gambar/video sendiri.
     if (scene.media_url && scene.media_type !== "audio") {
       const isVideo = scene.media_type === "video" || scene.media_url.startsWith("data:video/") || scene.media_url.includes(".mp4");
       const targetType = isVideo ? "video" : "image";
@@ -1003,8 +1005,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           maxDuration: clipDur, // kunci batas durasi master visual
         });
       }
-    } else if (!audioOnly && character?.avatar) {
-      // Jika scene tidak punya media visual spesifik tapi ada karakter dan bukan audioOnly, masukkan avatar karakter ke track gambar
+    } else if (!audioOnly && scene.media_type === "image" && character?.avatar) {
+      // Hanya jika scene secara spesifik berjenis visual "image" tapi belum ada media_url, baru gunakan avatar karakter
       let charTrack = state.timeline.tracks.find((t) => t.type === "image");
       if (!charTrack) {
         get().addTrack("image");
@@ -1198,17 +1200,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (!movedClip) return state;
       pushUndoState(state);
 
-      const duration = movedClip.end - movedClip.start;
       const destTrackId = targetTrackId || currentTrackId;
-      const destTrack = state.timeline.tracks.find((t) => t.id === destTrackId);
-
-      // Kunci posisi start agar TIDAK PERNAH menimpa/menabrak klip lain di track ini
-      const nonOverlappingStart = destTrack
-        ? clampNonOverlappingPosition(destTrack.clips, clipId, newStart, duration)
-        : Math.max(0, newStart);
-
-      const validStart = nonOverlappingStart;
-      const validEnd = validStart + duration;
 
       // Update clips
       const updatedTracks = state.timeline.tracks.map((track) => {
@@ -1220,23 +1212,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           };
         }
 
-        // Tambah ke track baru jika pindah track
+        // Tambah ke track baru jika pindah track (otomatis geser klip lain jika menimpa)
         if (track.id === destTrackId && destTrackId !== currentTrackId) {
+          const newTrackClips = reorderClipsOnTrack(track.clips, clipId, newStart, {
+            ...movedClip!,
+            trackId: destTrackId,
+          });
           return {
             ...track,
-            clips: [
-              ...track.clips,
-              {
-                ...movedClip!,
-                trackId: destTrackId,
-                start: validStart,
-                end: validEnd,
-              },
-            ],
+            clips: newTrackClips,
           };
         }
 
-        // Update di track yang sama (gunakan reorderClipsOnTrack agar klip bisa dipindah dan di-reorder urutan posisinya di layer yang sama)
+        // Update di track yang sama (otomatis geser klip lain jika menimpa/ripple push)
         if (track.id === currentTrackId && destTrackId === currentTrackId) {
           const reorderedClips = reorderClipsOnTrack(track.clips, clipId, newStart);
           return {
@@ -1248,7 +1236,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return track;
       });
 
-      const maxEnd = Math.max(state.meta.duration, validEnd + 5);
+      // Hitung durasi proyek terbaru dari klip paling kanan di semua track
+      let maxEnd = state.meta.duration;
+      for (const tr of updatedTracks) {
+        for (const cl of tr.clips) {
+          if (cl.end + 5 > maxEnd) {
+            maxEnd = cl.end + 5;
+          }
+        }
+      }
 
       return {
         timeline: { ...state.timeline, tracks: updatedTracks },

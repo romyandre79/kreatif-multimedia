@@ -5,7 +5,8 @@ import { generateNaturalSpeechAudio } from "../services/naturalTts";
 import { optimizeImageToDataUrl, fileToDataUrl, saveProjectToIndexedDB, loadProjectFromIndexedDB } from "../services/persistentMedia";
 import { ImageAnimationConfig } from "../services/imageAnimationPresets";
 import { CameraMotionConfig, DEFAULT_CAMERA_MOTION } from "../services/cameraMotion";
-import { clampNonOverlappingPosition, clampNonOverlappingTrim } from "../services/timelineCollision";
+import { clampNonOverlappingPosition, clampNonOverlappingTrim, reorderClipsOnTrack } from "../services/timelineCollision";
+import { addCustomAudioToStorage, ScrapedAudioItem } from "../services/audioScraper";
 
 // --- Types ---
 
@@ -27,12 +28,12 @@ export interface Character {
 
 export interface Scene {
   scene_id: string;
-  character_id: string; // ID Karakter, "image" (Gambar), "video" (Video), atau "" (Narasi)
+  character_id: string; // ID Karakter, "image" (Gambar), "video" (Video), "audio" (Audio), atau "" (Narasi)
   script: string;
   audio_url: string;
   duration: number;
   media_url?: string;
-  media_type?: "image" | "video";
+  media_type?: "image" | "video" | "audio";
 }
 
 export interface Episode {
@@ -92,6 +93,7 @@ export interface Clip {
   text_animation?: TextAnimation | null;
   image_animation?: ImageAnimationConfig | null;
   volume?: number;
+  muted?: boolean; // Status audio aktif/nonaktif pada video atau audio klip
   opacity?: number;
   playbackSpeed?: number; // Kecepatan putar dasar klip video/audio (misal 1.0, 1.5, 2.0, 4.0)
   keyframes?: Keyframe[];
@@ -222,7 +224,7 @@ interface ProjectStore {
   // Clip Timeline Actions
   addClipToTrack: (trackId: string, clipData: Partial<Clip>) => void;
   updateClipPosition: (clipId: string, newStart: number, targetTrackId?: string) => void;
-  trimClip: (clipId: string, edge: "left" | "right", newTime: number) => void;
+  trimClip: (clipId: string, edge: "left" | "right", newTime: number, initialClipState?: { start: number; end: number; source_start: number }) => void;
   splitClipAtTime: (clipId: string, splitTime: number) => void;
   deleteSelectedClip: () => void;
   updateClipProperties: (clipId: string, props: Partial<Clip>) => void;
@@ -253,20 +255,34 @@ interface HistorySnapshot {
 const undoStack: HistorySnapshot[] = [];
 const redoStack: HistorySnapshot[] = [];
 
+// Shallow/selective clone snapshot yang tidak menggandakan string base64/media besar berulang kali di RAM
 function captureSnapshot(state: {
   timeline: TimelineState;
   characters: Character[];
   episodes: Episode[];
   meta: ProjectMeta;
 }): HistorySnapshot {
-  return JSON.parse(
-    JSON.stringify({
-      timeline: state.timeline,
-      characters: state.characters,
-      episodes: state.episodes,
-      meta: state.meta,
-    })
-  );
+  return {
+    meta: { ...state.meta },
+    characters: state.characters.map((c) => ({ ...c, assets: [...c.assets], voice: { ...c.voice } })),
+    episodes: state.episodes.map((ep) => ({
+      ...ep,
+      scenes: ep.scenes.map((sc) => ({ ...sc })),
+    })),
+    timeline: {
+      tracks: state.timeline.tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) => ({
+          ...c,
+          transform: c.transform ? { ...c.transform } : undefined,
+          chroma_key: c.chroma_key ? { ...c.chroma_key } : undefined,
+          transition_in: c.transition_in ? { ...c.transition_in } : null,
+          transition_out: c.transition_out ? { ...c.transition_out } : null,
+          keyframes: c.keyframes ? c.keyframes.map((kf) => ({ ...kf, properties: { ...kf.properties } })) : undefined,
+        })),
+      })),
+    },
+  };
 }
 
 export function pushUndoState(state: {
@@ -276,8 +292,9 @@ export function pushUndoState(state: {
   meta: ProjectMeta;
 }) {
   undoStack.push(captureSnapshot(state));
-  if (undoStack.length > 50) {
-    undoStack.shift(); // Batasi maksimal 50 snapshot riwayat
+  // Batasi maksimal 15 snapshot untuk menghemat memory RAM secara drastis
+  if (undoStack.length > 15) {
+    undoStack.shift();
   }
   redoStack.length = 0; // Hapus riwayat redo setiap ada perubahan baru
 }
@@ -954,11 +971,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const clipDur = scene.duration || 3.5;
     const endTime = startTime + clipDur;
 
-    // 1. Masukkan Audio TTS / rekaman ke Track Audio jika ada
-    if (audioTrack && scene.audio_url) {
+    // 1. Masukkan Audio TTS / rekaman / audio scene ke Track Audio jika ada
+    const effectiveAudioUrl = scene.media_type === "audio" ? (scene.media_url || scene.audio_url) : scene.audio_url;
+    if (audioTrack && effectiveAudioUrl) {
       get().addClipToTrack(audioTrack.id, {
         characterId: character?.id,
-        source: scene.audio_url,
+        source: effectiveAudioUrl,
+        text: scene.script || (scene.media_type === "audio" ? "Audio Scene" : undefined),
         start: startTime,
         end: endTime,
         maxDuration: clipDur, // kunci batas durasi master audio
@@ -967,7 +986,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
 
     // 2. Masukkan Media Visual (Image / Video) jika scene memiliki media visual
-    if (scene.media_url) {
+    if (scene.media_url && scene.media_type !== "audio") {
       const isVideo = scene.media_type === "video" || scene.media_url.startsWith("data:video/") || scene.media_url.includes(".mp4");
       const targetType = isVideo ? "video" : "image";
       let visualTrack = state.timeline.tracks.find((t) => t.type === targetType);
@@ -1008,10 +1027,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }
     }
 
-    // 3. Masukkan Subtitle teks naskah jika ada teks naskah dan BUKAN scene murni media (video/image)
-    // Untuk scene video atau gambar, teks di scene hanyalah prompt/deskripsi media sehingga tidak dikirim ke subtitle
-    const isPureVisualScene = scene.media_type === "video" || scene.media_type === "image";
-    if (!audioOnly && !isPureVisualScene && subTrack && scene.script && scene.script.trim()) {
+    // 3. Masukkan Subtitle teks naskah jika ada teks naskah dan BUKAN scene murni media (video/image/audio)
+    // Untuk scene video, gambar, atau audio, teks di scene hanyalah prompt/deskripsi/judul media sehingga tidak dikirim ke subtitle
+    const isPureMediaScene = scene.media_type === "video" || scene.media_type === "image" || scene.media_type === "audio";
+    if (!audioOnly && !isPureMediaScene && subTrack && scene.script && scene.script.trim()) {
       get().addClipToTrack(subTrack.id, {
         characterId: character?.id,
         text: `[${speakerLabel}]: ${scene.script}`,
@@ -1217,13 +1236,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           };
         }
 
-        // Update di track yang sama
+        // Update di track yang sama (gunakan reorderClipsOnTrack agar klip bisa dipindah dan di-reorder urutan posisinya di layer yang sama)
         if (track.id === currentTrackId && destTrackId === currentTrackId) {
+          const reorderedClips = reorderClipsOnTrack(track.clips, clipId, newStart);
           return {
             ...track,
-            clips: track.clips.map((c) =>
-              c.id === clipId ? { ...c, start: validStart, end: validEnd } : c
-            ),
+            clips: reorderedClips,
           };
         }
 
@@ -1238,7 +1256,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       };
     }),
 
-  trimClip: (clipId, edge, newTime) =>
+  trimClip: (clipId, edge, newTime, initialClipState) =>
     set((state) => {
       pushUndoState(state);
       const updatedTracks = state.timeline.tracks.map((track) => {
@@ -1253,16 +1271,30 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           clips: track.clips.map((clip) => {
             if (clip.id !== clipId) return clip;
 
-            // Jika klip belum memiliki maxDuration (misal dari project lama), hitung dari durasi awal klip
             const maxAllowed = clip.maxDuration || (clip.end - clip.start);
 
             if (edge === "left") {
-              // Trim kiri: tidak boleh melewati batas master dan tidak boleh menimpa klip sebelumnya
+              // Pemotongan dari kiri ke kanan (Trim In):
+              // newTime adalah posisi playhead/kursor baru yang bergerak ke kanan memotong klip.
+              // Batas: tidak boleh mendahului klip sebelumnya, dan tidak boleh melewati akhir klip (sisakan minimal 0.2s).
+              const baseStart = initialClipState ? initialClipState.start : clip.start;
+              const baseSourceStart = initialClipState ? initialClipState.source_start : (clip.source_start || 0);
+
               const minStart = clip.end - maxAllowed;
               const validStart = Math.max(minStart, Math.max(0, Math.min(safeTrimmedTime, clip.end - 0.2)));
-              return { ...clip, start: validStart, maxDuration: maxAllowed };
+
+              // Selisih berapa detik awal video yang telah dipotong dari titik awal drag
+              const deltaTrim = validStart - baseStart;
+              const newSourceStart = Math.max(0, baseSourceStart + deltaTrim);
+
+              return {
+                ...clip,
+                start: validStart,
+                source_start: newSourceStart,
+                maxDuration: maxAllowed,
+              };
             } else {
-              // Trim kanan: tidak boleh melebihi batas master dan tidak boleh menimpa klip setelahnya
+              // Trim kanan: memperpendek atau memotong akhir klip
               const maxEnd = clip.start + maxAllowed;
               const validEnd = Math.min(maxEnd, Math.max(clip.start + 0.2, safeTrimmedTime));
               return { ...clip, end: validEnd, maxDuration: maxAllowed };
@@ -1619,6 +1651,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       if (targetTrackType === "audio") {
         newClip.volume = 1.0;
+
+        // Simpan juga audio yang di-upload manual ini ke Pustaka Audios / AudioVault
+        const audioTitle = file.name.replace(/\.[^/.]+$/, "");
+        const newAudioItem: ScrapedAudioItem = {
+          id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          title: audioTitle,
+          providerId: "local_upload",
+          sourceName: "Upload Lokal",
+          category: measuredDuration > 30 ? "bgm" : "sfx",
+          durationStr: `${Math.floor(measuredDuration / 60)}:${Math.floor(measuredDuration % 60).toString().padStart(2, "0")}`,
+          durationSec: measuredDuration,
+          url: persistentUrl,
+          license: "free",
+          author: "User",
+          tags: ["local", "upload"],
+          scrapedAt: new Date().toISOString(),
+        };
+        addCustomAudioToStorage(newAudioItem).catch((err) => {
+          console.warn("Gagal auto-simpan audio ke Pustaka Audios:", err);
+        });
       }
 
       get().addClipToTrack(track.id, newClip);

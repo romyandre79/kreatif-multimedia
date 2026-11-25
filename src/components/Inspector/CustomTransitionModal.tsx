@@ -318,7 +318,7 @@ export default function CustomTransitionModal({
                           <div className="flex items-center gap-1.5 font-semibold">
                             <span>{item.icon || "✨"}</span>
                             <span className="truncate">{item.name}</span>
-                            <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded border border-amber-500/30">
+                            <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.5 rounded border border-amber-500/30">
                               Bawaan
                             </span>
                           </div>

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 import { fileToDataUrl, optimizeImageToDataUrl } from "../../services/persistentMedia";
+import { addCustomAudioToStorage, ScrapedAudioItem } from "../../services/audioScraper";
 import GeminiGeneratorModal from "../GeminiFlow/GeminiGeneratorModal";
 import ScriptImportModal from "./ScriptImportModal";
 
@@ -75,8 +76,10 @@ export default function StoryEpisode() {
         if (scene.media_type !== "image") return false;
       } else if (characterFilter === "__video__") {
         if (scene.media_type !== "video") return false;
+      } else if (characterFilter === "__audio__") {
+        if (scene.media_type !== "audio") return false;
       } else if (characterFilter === "__narasi__") {
-        if (scene.character_id !== "" || scene.media_type === "image" || scene.media_type === "video") return false;
+        if (scene.character_id !== "" || scene.media_type === "image" || scene.media_type === "video" || scene.media_type === "audio") return false;
       } else {
         if (scene.character_id !== characterFilter) return false;
       }
@@ -174,19 +177,41 @@ export default function StoryEpisode() {
 
       // Hitung durasi eksak file audio
       const audio = new Audio(dataUrl);
-      audio.onloadedmetadata = () => {
-        const dur = isNaN(audio.duration) || !isFinite(audio.duration) ? 3.5 : parseFloat(audio.duration.toFixed(2));
-        updateScene(audioTargetScene.episodeId, audioTargetScene.sceneId, {
-          audio_url: dataUrl,
-          duration: dur,
-        });
+      const dur = await new Promise<number>((resolve) => {
+        audio.onloadedmetadata = () => {
+          const d = isNaN(audio.duration) || !isFinite(audio.duration) ? 3.5 : parseFloat(audio.duration.toFixed(2));
+          resolve(d);
+        };
+        audio.onerror = () => resolve(3.5);
+        setTimeout(() => resolve(3.5), 2000);
+      });
+
+      // Update audio pada scene
+      updateScene(audioTargetScene.episodeId, audioTargetScene.sceneId, {
+        audio_url: dataUrl,
+        media_url: dataUrl,
+        duration: dur,
+      });
+
+      // Simpan audio manual ini ke pustaka Audios Tersimpan (AudioVault / storage)
+      const audioTitle = file.name.replace(/\.[^/.]+$/, "");
+      const newAudioItem: ScrapedAudioItem = {
+        id: `local-episode-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        title: audioTitle,
+        providerId: "local_upload",
+        sourceName: "Upload Episode",
+        category: dur > 30 ? "bgm" : "sfx",
+        durationStr: `${Math.floor(dur / 60)}:${Math.floor(dur % 60).toString().padStart(2, "0")}`,
+        durationSec: dur,
+        url: dataUrl,
+        license: "free",
+        author: "User",
+        tags: ["local", "episode", "upload"],
+        scrapedAt: new Date().toISOString(),
       };
-      audio.onerror = () => {
-        updateScene(audioTargetScene.episodeId, audioTargetScene.sceneId, {
-          audio_url: dataUrl,
-          duration: 3.5,
-        });
-      };
+      addCustomAudioToStorage(newAudioItem).catch((err) => {
+        console.warn("Gagal auto-simpan audio episode ke pustaka:", err);
+      });
     } catch (err) {
       console.error("Gagal upload file audio:", err);
       alert("Gagal membaca file audio.");
@@ -362,6 +387,7 @@ export default function StoryEpisode() {
                   <option value="all">Semua Tipe / Karakter</option>
                   <option value="__image__">🖼️ Image Saja</option>
                   <option value="__video__">🎬 Video Saja</option>
+                  <option value="__audio__">🎵 Audio Saja</option>
                   <option value="__narasi__">🎙️ Narasi Saja</option>
                   {characters.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -441,7 +467,9 @@ export default function StoryEpisode() {
                               ? "__image__"
                               : scene.media_type === "video" && !scene.character_id
                                 ? "__video__"
-                                : scene.character_id
+                                : scene.media_type === "audio" && !scene.character_id
+                                  ? "__audio__"
+                                  : scene.character_id
                           }
                           onChange={(e) => {
                             const val = e.target.value;
@@ -455,9 +483,15 @@ export default function StoryEpisode() {
                                 character_id: "",
                                 media_type: "video",
                               });
+                            } else if (val === "__audio__") {
+                              updateScene(activeEpisode.id, scene.scene_id, {
+                                character_id: "",
+                                media_type: "audio",
+                              });
                             } else {
                               updateScene(activeEpisode.id, scene.scene_id, {
                                 character_id: val,
+                                media_type: undefined,
                               });
                             }
                           }}
@@ -465,6 +499,7 @@ export default function StoryEpisode() {
                         >
                           <option value="__image__">🖼️ Image</option>
                           <option value="__video__">🎬 Video</option>
+                          <option value="__audio__">🎵 Audio</option>
                           <option value="">🎙️ Narasi</option>
                           {characters.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -580,6 +615,88 @@ export default function StoryEpisode() {
                       </div>
                     )}
 
+                    {/* Preview / Pengaturan Audio jika scene memilih Audios */}
+                    {scene.media_type === "audio" && (
+                      <div className="p-2 bg-[#121a24] border border-blue-900/40 rounded-md space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-blue-400 font-medium flex items-center gap-1">
+                            🎵 Audio Track Scene
+                          </span>
+
+                          <div className="flex items-center gap-1">
+                            {/* Tombol Upload Audio */}
+                            <button
+                              onClick={() => {
+                                setAudioTargetScene({
+                                  episodeId: activeEpisode.id,
+                                  sceneId: scene.scene_id,
+                                });
+                                audioFileInputRef.current?.click();
+                              }}
+                              className="px-2 py-0.5 bg-blue-950/70 hover:bg-blue-900 text-blue-300 hover:text-white rounded text-[10px] border border-blue-700/60 transition-colors flex items-center gap-1"
+                              title="Upload file audio dari komputer (.mp3, .wav, .m4a, .ogg)"
+                            >
+                              📁 Upload Audio
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Preview / Player Audio Scene */}
+                        {scene.audio_url || scene.media_url ? (
+                          <div className="p-2 rounded border border-gray-700/70 bg-black/40 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <span className="text-base">🎶</span>
+                              <div className="truncate">
+                                <p className="text-[11px] font-semibold text-gray-200 truncate">
+                                  {scene.script || "Audio Scene"}
+                                </p>
+                                <p className="text-[10px] text-blue-400 font-mono">
+                                  Durasi: {scene.duration ? scene.duration.toFixed(1) : 0}s
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => {
+                                  try {
+                                    const audioSrc = scene.media_url || scene.audio_url;
+                                    const audio = new Audio(audioSrc);
+                                    audio.volume = 1.0;
+                                    audio.play().catch((err) => {
+                                      alert("Gagal memutar audio: " + err.message);
+                                    });
+                                  } catch (e: any) {
+                                    alert("Error audio: " + e.message);
+                                  }
+                                }}
+                                className="px-2 py-0.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-300 rounded text-[10px] flex items-center gap-1 font-mono transition-colors"
+                                title="Putar preview audio"
+                              >
+                                ▶️ Putar
+                              </button>
+                              <button
+                                onClick={() =>
+                                  updateScene(activeEpisode.id, scene.scene_id, {
+                                    audio_url: "",
+                                    media_url: "",
+                                  })
+                                }
+                                className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-950/60 text-gray-400 hover:text-red-400 transition-colors text-[10px]"
+                                title="Hapus audio dari scene ini"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-gray-500 italic py-1 flex items-center gap-1">
+                            <span>ℹ️ Belum ada audio terpasang. Klik tombol "📁 Upload Audio" di atas untuk memilih file audio.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Input Naskah Dialog / Narasi Cerita */}
                     <textarea
                       rows={2}
@@ -592,9 +709,11 @@ export default function StoryEpisode() {
                           ? "Tulis prompt visual gambar atau deskripsi scene..."
                           : scene.media_type === "video"
                             ? "Tulis prompt visual video atau aksi motion scene..."
-                            : scene.character_id
-                              ? "Tulis naskah dialog karakter di scene ini..."
-                              : "Tulis naskah narasi / voiceover cerita di sini..."
+                            : scene.media_type === "audio"
+                              ? "Tulis judul atau catatan audio ini..."
+                              : scene.character_id
+                                ? "Tulis naskah dialog karakter di scene ini..."
+                                : "Tulis naskah narasi / voiceover cerita di sini..."
                       }
                       className="w-full px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-gray-200 text-xs focus:border-indigo-500 focus:outline-none resize-none"
                     />
@@ -602,7 +721,7 @@ export default function StoryEpisode() {
                     {/* Kontrol Audio TTS & Masuk Timeline */}
                     <div className="flex items-center justify-between pt-1 border-t border-gray-700/40">
                       {/* Kontrol TTS & Upload Audio hanya muncul untuk Dialog Karakter atau Narasi */}
-                      {scene.media_type !== "image" && scene.media_type !== "video" ? (
+                      {scene.media_type !== "image" && scene.media_type !== "video" && scene.media_type !== "audio" ? (
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             onClick={async () => {
@@ -675,7 +794,11 @@ export default function StoryEpisode() {
                         </div>
                       ) : (
                         <div className="text-[10px] text-gray-500 italic">
-                          <span>Scene Visual {scene.media_type === "video" ? "Video" : "Gambar"}</span>
+                          <span>
+                            {scene.media_type === "audio"
+                              ? "Scene Audio Pustaka / Rekaman"
+                              : `Scene Visual ${scene.media_type === "video" ? "Video" : "Gambar"}`}
+                          </span>
                         </div>
                       )}
 

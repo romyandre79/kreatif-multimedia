@@ -340,7 +340,7 @@ Aline: oh Fisika tadi bisa kok, pulang sekolah aku ajarin`
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span
-                            className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                               item.type === "narasi"
                                 ? "bg-amber-600/30 text-amber-300"
                                 : item.type === "action"

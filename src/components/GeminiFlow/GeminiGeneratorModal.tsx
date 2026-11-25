@@ -1,6 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
-import { generateGeminiImage, generateGeminiVideo, fileToBase64 } from "../../services/geminiFlow";
+import { fileToBase64 } from "../../services/geminiFlow";
+import {
+  generateUnifiedImage,
+  generateUnifiedVideo,
+  AI_MEDIA_PROVIDERS,
+} from "../../services/aiMediaFlow";
 
 interface GeminiGeneratorModalProps {
   onClose: () => void;
@@ -93,7 +98,14 @@ export default function GeminiGeneratorModal({
   const tracks = useProjectStore((s) => s.timeline.tracks);
   const currentTime = useProjectStore((s) => s.currentTime);
 
+  const updateAiSettings = useProjectStore((s) => s.updateAiSettings);
+
   const targetChar = characters.find((c) => c.id === targetCharacterId);
+
+  // Provider AI aktif yang bisa diganti langsung di modal
+  const [selectedProvider, setSelectedProvider] = useState<string>(
+    aiSettings.imageGen.provider || "gemini_flow"
+  );
 
   const [mode, setMode] = useState<"image" | "video">("image");
   const [selectedPoseId, setSelectedPoseId] = useState<string | null>(null);
@@ -171,9 +183,15 @@ export default function GeminiGeneratorModal({
   };
 
   const handleGenerate = async () => {
-    const apiKey = aiSettings.imageGen.apiKey;
-    if (!apiKey) {
-      setErrorMsg("Gemini API Key belum diisi! Silakan buka menu 'AI Engine' di toolbar untuk memasukkan API Key.");
+    const activeConfig = {
+      ...aiSettings.imageGen,
+      provider: selectedProvider as any,
+    };
+
+    if (!activeConfig.apiKey && activeConfig.provider !== "comfy_local") {
+      setErrorMsg(
+        `API Key untuk ${selectedProvider.toUpperCase()} belum diatur. Silakan buka menu 'AI Engine' di toolbar untuk memasukkan API Key.`
+      );
       return;
     }
 
@@ -184,7 +202,7 @@ export default function GeminiGeneratorModal({
 
     try {
       if (mode === "image") {
-        const urls = await generateGeminiImage(apiKey, {
+        const urls = await generateUnifiedImage(activeConfig, {
           prompt: finalPrompt,
           referenceImageBase64: referenceBase64 || undefined,
           aspectRatio,
@@ -192,7 +210,7 @@ export default function GeminiGeneratorModal({
         });
         setGeneratedResults(urls);
       } else {
-        const videoUrl = await generateGeminiVideo(apiKey, {
+        const videoUrl = await generateUnifiedVideo(activeConfig, {
           prompt: finalPrompt,
           referenceImageBase64: referenceBase64 || undefined,
           aspectRatio: aspectRatio === "9:16" ? "9:16" : "16:9",
@@ -200,7 +218,7 @@ export default function GeminiGeneratorModal({
         setGeneratedResults([videoUrl]);
       }
     } catch (err: any) {
-      setErrorMsg(err.message || "Terjadi kesalahan saat memanggil Gemini API.");
+      setErrorMsg(err.message || `Terjadi kesalahan saat memanggil AI (${selectedProvider}).`);
     } finally {
       setIsGenerating(false);
     }
@@ -261,7 +279,7 @@ export default function GeminiGeneratorModal({
             </div>
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Gemini Flow Pose Generator
+                AI Studio Media Generator
                 {targetChar && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-700/60 text-cyan-300 font-normal">
                     👤 {targetChar.name}
@@ -269,7 +287,7 @@ export default function GeminiGeneratorModal({
                 )}
               </h2>
               <p className="text-[10px] text-gray-400">
-                Pilih variasi pose atau ketik aksi manual dengan referensi karakter otomatis
+                Pilih model AI sesuai kebutuhan: Google Gemini Flow, Fal.ai FLUX, DALL-E, atau ComfyUI
               </p>
             </div>
           </div>
@@ -283,6 +301,54 @@ export default function GeminiGeneratorModal({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* AI Provider Switcher (Sesuai Pengaturan AI Image & Video) */}
+          <div className="p-3 bg-[#151821] rounded-xl border border-[#272c3d] space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-gray-300 flex items-center gap-1.5">
+                <span>🤖</span>
+                <span>Engine / Provider AI:</span>
+              </label>
+              <span className="text-[10px] text-cyan-400 font-mono">
+                {AI_MEDIA_PROVIDERS.find((p) => p.id === selectedProvider)?.badge || "Multi-AI"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {AI_MEDIA_PROVIDERS.map((prov) => {
+                const isSelected = selectedProvider === prov.id;
+                const canDoVideo = mode === "video" ? prov.supportsVideo : true;
+                return (
+                  <button
+                    key={prov.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProvider(prov.id);
+                      updateAiSettings({
+                        imageGen: {
+                          ...aiSettings.imageGen,
+                          provider: prov.id,
+                        },
+                      });
+                    }}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      isSelected
+                        ? "bg-cyan-950/70 border-cyan-500 text-cyan-200 shadow-sm"
+                        : "bg-[#101217] border-[#222532] text-gray-400 hover:text-gray-200 hover:border-gray-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-medium text-[11px] truncate">
+                      <span>{prov.icon}</span>
+                      <span className="truncate">{prov.name.split(" ")[0]}</span>
+                    </div>
+                    <span className="text-[9px] text-gray-500 block truncate mt-0.5">
+                      {prov.badge} {!canDoVideo && "(Hanya Gambar)"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Mode Switcher: Image vs Video */}
           <div className="flex bg-[#191c24] p-1 rounded-xl border border-[#272b3a]">
             <button
@@ -294,7 +360,7 @@ export default function GeminiGeneratorModal({
               }`}
             >
               <span>🖼️</span>
-              <span>Generate Pose Gambar (Imagen 3)</span>
+              <span>Generate Gambar ({selectedProvider === "gemini_flow" ? "Imagen 3" : selectedProvider === "fal_ai" ? "FLUX.1" : selectedProvider === "openai_dalle" ? "DALL-E 3" : "AI Image"})</span>
             </button>
             <button
               onClick={() => setMode("video")}
@@ -305,7 +371,7 @@ export default function GeminiGeneratorModal({
               }`}
             >
               <span>🎬</span>
-              <span>Generate Motion Video (Veo)</span>
+              <span>Generate Motion Video ({selectedProvider === "gemini_flow" ? "Veo 2" : selectedProvider === "fal_ai" ? "Kling/LTX" : "AI Video"})</span>
             </button>
           </div>
 

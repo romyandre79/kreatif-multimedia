@@ -39,6 +39,10 @@ export default function InternalImageEditorModal({
   const [chromaSimilarity, setChromaSimilarity] = useState(initialChroma.similarity);
   const [chromaSmoothness, setChromaSmoothness] = useState(initialChroma.smoothness);
 
+  // Audio / Suara video state
+  const [videoMuted, setVideoMuted] = useState(clip.muted ?? false);
+  const [videoVolume, setVideoVolume] = useState(clip.volume ?? 1.0);
+
   const handleApplyChanges = () => {
     updateClipProperties(clip.id, {
       transform: {
@@ -53,6 +57,8 @@ export default function InternalImageEditorModal({
         similarity: chromaSimilarity,
         smoothness: chromaSmoothness,
       },
+      muted: videoMuted,
+      volume: videoVolume,
     });
     onClose();
   };
@@ -342,6 +348,51 @@ export default function InternalImageEditorModal({
                 </div>
               )}
             </div>
+            {/* Audio & Suara Video (Khusus Klip Video) */}
+            {isVideo && (
+              <div className="rounded-xl bg-[#151720] border border-[#212532] p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-200 text-xs flex items-center gap-1.5">
+                    🔊 Kontrol Suara / Audio Video
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setVideoMuted(!videoMuted)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold border transition-colors flex items-center gap-1.5 ${
+                      videoMuted
+                        ? "bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30"
+                        : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                    }`}
+                  >
+                    <span>{videoMuted ? "🔇 Suara Mati" : "🔊 Suara Hidup"}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>Volume Video Asli</span>
+                    <span className="font-mono text-cyan-400">
+                      {videoMuted ? "0% (Muted)" : `${Math.round(videoVolume * 100)}%`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    disabled={videoMuted}
+                    value={videoVolume}
+                    onChange={(e) => setVideoVolume(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-[#232734] rounded appearance-none cursor-pointer accent-cyan-500 disabled:opacity-30"
+                  />
+                  <p className="text-[10px] text-gray-500 italic">
+                    {videoMuted
+                      ? "Audio internal video ini dinonaktifkan saat playback dan render."
+                      : "Audio internal video ini akan berbunyi dan dirender sesuai volume di atas."}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -155,7 +155,7 @@ export default function CameraMotionModal({ onClose }: CameraMotionModalProps) {
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-xl">{preset.icon}</span>
                         {isSelected && (
-                          <span className="text-[10px] px-1.5 py-0.2 bg-cyan-500/30 text-cyan-300 font-bold rounded">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/30 text-cyan-300 font-bold rounded">
                             AKTIF
                           </span>
                         )}

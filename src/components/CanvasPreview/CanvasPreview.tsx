@@ -45,21 +45,38 @@ export default function CanvasPreview() {
   }, [currentTime]);
 
   // Reset audio & video playback state saat playhead di-pause atau di-stop
+  // Serta otomatis bersihkan mediaCache dari aset yang sudah dihapus dari timeline agar RAM tidak bocor (Garbage Collection)
   useEffect(() => {
     if (!isPlaying) {
       activeAudioClipsRef.current.clear();
       activeVideoClipsRef.current.clear();
       spokenSubtitleRef.current.clear();
-      // Jeda semua elemen audio & video di cache saat pause
-      mediaCacheRef.current.forEach((el) => {
-        if (el instanceof HTMLAudioElement && !el.paused) {
-          el.pause();
-        } else if (el instanceof HTMLVideoElement && !el.paused) {
-          el.pause();
+
+      // Himpun semua source URL yang saat ini masih aktif di timeline
+      const activeSources = new Set<string>();
+      tracksRef.current.forEach((t) => {
+        t.clips.forEach((c) => {
+          if (c.source) activeSources.add(c.source);
+        });
+      });
+
+      // Bersihkan dan buang elemen media yang sudah tidak ada di timeline
+      mediaCacheRef.current.forEach((el, src) => {
+        if (!activeSources.has(src)) {
+          if (el instanceof HTMLMediaElement) {
+            el.pause();
+            el.removeAttribute("src");
+            el.load();
+          }
+          mediaCacheRef.current.delete(src);
+        } else {
+          if (el instanceof HTMLMediaElement && !el.paused) {
+            el.pause();
+          }
         }
       });
     }
-  }, [isPlaying]);
+  }, [isPlaying, tracks]);
 
   // Shortcut keyboard spasi untuk Play / Pause
   useEffect(() => {
@@ -303,6 +320,23 @@ export default function CanvasPreview() {
             // Terapkan kecepatan putar pada elemen HTMLVideoElement
             if (Math.abs(media.playbackRate - currentSpeed) > 0.05) {
               media.playbackRate = Math.max(0.25, Math.min(8.0, currentSpeed));
+            }
+
+            // Terapkan kontrol audio / suara video (Mute dan Volume)
+            const isVideoTrackMuted = track.muted || track.visible === false;
+            const isClipMuted = clip.muted ?? false;
+            if (isVideoTrackMuted || isClipMuted) {
+              media.muted = true;
+              media.volume = 0;
+            } else {
+              media.muted = false;
+              let effectiveVol = clip.volume ?? 1.0;
+              // Jika ada keyframe volume pada video
+              if (clip.keyframes && clip.keyframes.length > 0) {
+                const kf = interpolateKeyframes(clip.keyframes, relativeClipTime, { volume: effectiveVol });
+                if (kf.volume !== undefined) effectiveVol = kf.volume;
+              }
+              media.volume = Math.max(0, Math.min(1, effectiveVol));
             }
 
             if (!activeVideoClipsRef.current.has(clip.id)) {

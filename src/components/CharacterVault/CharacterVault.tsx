@@ -403,7 +403,7 @@ export default function CharacterVault() {
                             onMouseEnter={(e) => (e.target as HTMLVideoElement).play().catch(() => { })}
                             onMouseLeave={(e) => (e.target as HTMLVideoElement).pause()}
                           />
-                          <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/70 text-[9px] font-mono text-cyan-300 border border-cyan-500/30 flex items-center gap-0.5">
+                          <span className="absolute top-1 left-1 px-1 py-0.5 rounded bg-black/70 text-[9px] font-mono text-cyan-300 border border-cyan-500/30 flex items-center gap-0.5">
                             🎬 Video
                           </span>
                         </div>

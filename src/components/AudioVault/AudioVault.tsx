@@ -7,6 +7,8 @@ import {
   syncScrapeAudiosInBackground,
   resetAndSyncAllAudios,
   getLastScrapeSyncTime,
+  addCustomAudioToStorage,
+  KREATIF_AUDIOS_UPDATED_EVENT,
 } from "../../services/audioScraper";
 
 interface AudioVaultProps {
@@ -47,6 +49,14 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
       }
     });
 
+    const handleAudiosUpdated = (e: any) => {
+      if (isMounted && e.detail && Array.isArray(e.detail)) {
+        setScrapedAudios(e.detail);
+        setLastSyncTime(getLastScrapeSyncTime());
+      }
+    };
+    window.addEventListener(KREATIF_AUDIOS_UPDATED_EVENT, handleAudiosUpdated);
+
     // Jalankan background synchronizer di latar belakang secara asinkron
     const timer = setTimeout(() => {
       syncScrapeAudiosInBackground(audioProviders, (status) => {
@@ -62,6 +72,7 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
 
     return () => {
       isMounted = false;
+      window.removeEventListener(KREATIF_AUDIOS_UPDATED_EVENT, handleAudiosUpdated);
       clearTimeout(timer);
     };
   }, [audioProviders]);
@@ -251,11 +262,11 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
         });
 
         const newAudio: ScrapedAudioItem = {
-          id: `local-${Date.now()}-${Math.random()}`,
+          id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           title: file.name.replace(/\.[^/.]+$/, ""),
           providerId: "local_upload",
           sourceName: "Upload Lokal",
-          category: "sfx",
+          category: dur > 30 ? "bgm" : "sfx",
           durationStr: `${Math.floor(dur / 60)}:${Math.floor(dur % 60).toString().padStart(2, "0")}`,
           durationSec: dur,
           url: dataUrl,
@@ -265,10 +276,8 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
           scrapedAt: new Date().toISOString(),
         };
 
-        const updated = [newAudio, ...scrapedAudios];
+        const updated = await addCustomAudioToStorage(newAudio);
         setScrapedAudios(updated);
-        // Simpan langsung ke storage
-        localStorage.setItem("kreatif_scraped_audios_v1", JSON.stringify(updated));
       } catch (err) {
         console.warn("Gagal membaca audio lokal:", err);
       }
@@ -427,11 +436,11 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
                         {item.title}
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[9px] px-1.5 py-0.2 rounded font-mono uppercase bg-[#1c1f2b] text-cyan-400 border border-[#272b3c]">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-mono uppercase bg-[#1c1f2b] text-cyan-400 border border-[#272b3c]">
                           {item.sourceName}
                         </span>
                         <span
-                          className={`text-[9px] px-1 py-0.2 rounded font-mono uppercase ${
+                          className={`text-[9px] px-1 py-0.5 rounded font-mono uppercase ${
                             item.license === "free"
                               ? "bg-emerald-500/10 text-emerald-400"
                               : "bg-purple-500/10 text-purple-400"
@@ -514,7 +523,7 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
                     {prov.name}
                   </h4>
                   <span
-                    className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase ${
                       prov.category === "free"
                         ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                         : prov.category === "paid"

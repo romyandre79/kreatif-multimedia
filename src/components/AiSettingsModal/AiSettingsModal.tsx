@@ -604,7 +604,7 @@ export default function AiSettingsModal({ onClose }: AiSettingsModalProps) {
                             {prov.name}
                           </p>
                           <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase ${
                               prov.category === "free"
                                 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                 : prov.category === "paid"

@@ -133,7 +133,7 @@ export default function ExportDialog({ onClose }: ExportDialogProps) {
                       <span>{preset.icon}</span>
                       <span className={isSelected ? "text-cyan-300" : ""}>{preset.label}</span>
                     </div>
-                    <span className={`text-[9px] font-mono px-1 py-0.2 rounded ${
+                    <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
                       preset.ratio === "16:9"
                         ? "bg-blue-950 text-blue-300 border border-blue-800/60"
                         : preset.ratio === "9:16"

@@ -205,7 +205,7 @@ export default function CustomTextAnimationModal({
             <div className="bg-[#12141c] p-3.5 rounded-lg border border-gray-800 space-y-3">
               <div className="font-semibold text-gray-200 border-b border-gray-800 pb-1.5 flex items-center justify-between">
                 <span>🏃‍♂️ 1. Motion Type Masuk (20 Pilihan)</span>
-                <span className="text-[10px] px-1.5 py-0.2 bg-cyan-950 text-cyan-300 rounded font-mono">
+                <span className="text-[10px] px-1.5 py-0.5 bg-cyan-950 text-cyan-300 rounded font-mono">
                   20 Jenis
                 </span>
               </div>
@@ -274,7 +274,7 @@ export default function CustomTextAnimationModal({
                   <label className="text-[11px] font-semibold text-purple-300">
                     🔄 2. Loop Animation Selama Tayang (20 Pilihan):
                   </label>
-                  <span className="text-[10px] px-1.5 py-0.2 bg-purple-950 text-purple-300 rounded font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-purple-950 text-purple-300 rounded font-mono">
                     20 Jenis
                   </span>
                 </div>

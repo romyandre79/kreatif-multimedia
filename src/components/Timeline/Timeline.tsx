@@ -79,6 +79,7 @@ export default function Timeline() {
     originX: number;
     initialStart: number;
     initialEnd: number;
+    initialSourceStart?: number;
     targetTrackId?: string;
   } | null>(null);
 
@@ -139,7 +140,11 @@ export default function Timeline() {
       } else if (dragState.type === "trim-left") {
         const rawNewStart = dragState.initialStart + deltaTime;
         const snappedStart = calculateSnappedTime(rawNewStart, dragState.clipId);
-        trimClip(dragState.clipId, "left", snappedStart);
+        trimClip(dragState.clipId, "left", snappedStart, {
+          start: dragState.initialStart,
+          end: dragState.initialEnd,
+          source_start: dragState.initialSourceStart || 0,
+        });
       } else if (dragState.type === "trim-right") {
         const rawNewEnd = dragState.initialEnd + deltaTime;
         const snappedEnd = calculateSnappedTime(rawNewEnd, dragState.clipId);
@@ -200,8 +205,8 @@ export default function Timeline() {
           <button
             onClick={() => setIsPlaying(!isPlaying)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition-all ${isPlaying
-                ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/30"
+              ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+              : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/30"
               }`}
             title="Play / Pause Timeline (Spasi)"
           >
@@ -263,15 +268,6 @@ export default function Timeline() {
             <span className="text-[11px] font-semibold">+ Gambar / Stiker</span>
           </button>
 
-          {/* Indikator Klip Terpilih & Pengaturan Kecepatan */}
-          {selectedClipId && (
-            <div className="flex items-center gap-1.5 pl-1.5 border-l border-[#252834]">
-              <span className="text-[10px] text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60 font-medium flex items-center gap-1">
-                <span>⚡</span>
-                <span>Speed Ramping aktif di panel Inspector (Kanan)</span>
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Right Tools (Zoom & Add Track) */}
@@ -454,13 +450,13 @@ export default function Timeline() {
                       {track.visible === false ? "🙈" : "👁️"}
                     </button>
 
-                    {/* Audio Mute Toggle (khusus layer audio) */}
-                    {track.type === "audio" && (
+                      {/* Audio Mute Toggle (layer audio atau layer video) */ }
+                    {(track.type === "audio" || track.type === "video") && (
                       <button
                         onClick={() => updateTrack(track.id, { muted: !track.muted })}
                         className={`p-1 rounded hover:bg-[#252834] text-[11px] transition-colors ${track.muted ? "text-red-400" : "text-gray-400 hover:text-white"
                           }`}
-                        title={track.muted ? "Unmute Layer Audio" : "Mute Layer Audio"}
+                        title={track.muted ? `Unmute Suara Layer ${track.name}` : `Mute Suara Layer ${track.name}`}
                       >
                         {track.muted ? "🔇" : "🔊"}
                       </button>
@@ -601,6 +597,7 @@ export default function Timeline() {
                               originX: e.clientX,
                               initialStart: clip.start,
                               initialEnd: clip.end,
+                              initialSourceStart: clip.source_start || 0,
                             });
                           }}
                           className="w-2 h-full cursor-ew-resize bg-black/30 hover:bg-white/40 shrink-0 flex items-center justify-center"

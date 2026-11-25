@@ -336,6 +336,30 @@ export async function saveScrapedAudiosToStorage(items: ScrapedAudioItem[]): Pro
 }
 
 /**
+ * Event name untuk notifikasi perubahan pustaka audio
+ */
+export const KREATIF_AUDIOS_UPDATED_EVENT = "kreatif_audios_updated";
+
+/**
+ * Menambahkan audio manual/kustom ke dalam library Audios secara persisten
+ * dan memicu event sinkronisasi ke seluruh komponen yang mendengarkan.
+ */
+export async function addCustomAudioToStorage(audio: ScrapedAudioItem): Promise<ScrapedAudioItem[]> {
+  try {
+    const existing = await getCachedScrapedAudios();
+    const updated = [audio, ...existing.filter((item) => item.id !== audio.id)];
+    await saveScrapedAudiosToStorage(updated);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(KREATIF_AUDIOS_UPDATED_EVENT, { detail: updated }));
+    }
+    return updated;
+  } catch (err) {
+    console.warn("Gagal menambahkan audio kustom ke pustaka:", err);
+    return [];
+  }
+}
+
+/**
  * Reset dan sinkronisasi penuh kembali ke seed lengkap
  */
 export async function resetAndSyncAllAudios(providers: AudioProviderWeb[]): Promise<ScrapedAudioItem[]> {

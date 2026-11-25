@@ -85,12 +85,12 @@ async function convertHeicToBlob(file: File | Blob): Promise<Blob> {
   return file;
 }
 
-// Kompresi gambar besar agar muat dan sangat ringan
+// Kompresi gambar besar agar muat dan sangat ringan (hemat RAM & mencegah out of memory)
 export async function optimizeImageToDataUrl(
   file: File,
-  maxWidth = 1920,
-  maxHeight = 1080,
-  quality = 0.9
+  maxWidth = 1440,
+  maxHeight = 900,
+  quality = 0.82
 ): Promise<string> {
   let sourceBlob: Blob = file;
 

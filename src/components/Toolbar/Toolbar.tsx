@@ -145,10 +145,10 @@ export default function Toolbar({
             </svg>
           </div>
           <div>
-            <span className="text-xs font-bold tracking-wider uppercase text-white bg-gradient-to-r from-gray-100 to-gray-400 bg-clip-text text-transparent">
-              Kreatif Studio
+            <span className="text-xs font-bold tracking-wider uppercase text-white bg-linear-to-r from-gray-100 to-gray-400 bg-clip-text">
+              KreoTV
             </span>
-            <span className="text-[10px] text-cyan-400 font-mono ml-1.5 px-1 py-0.2 bg-cyan-950/80 border border-cyan-800/60 rounded">
+            <span className="text-[10px] text-cyan-400 font-mono ml-1.5 px-1 py-0.5 bg-cyan-950/80 border border-cyan-800/60 rounded">
               v1.0
             </span>
           </div>
@@ -220,8 +220,8 @@ export default function Toolbar({
           <button
             onClick={() => setShowAutoSaveMenu(!showAutoSaveMenu)}
             className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-all ${autoSaveConfig.enabled
-                ? "text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/40"
-                : "text-gray-400 hover:text-gray-200 hover:bg-[#232631]"
+              ? "text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/40"
+              : "text-gray-400 hover:text-gray-200 hover:bg-[#232631]"
               }`}
             title="Pengaturan Auto-Save (Menyimpan otomatis ke storage lokal tanpa mendownload file baru)"
           >
@@ -265,8 +265,8 @@ export default function Toolbar({
                         showNotification(`Auto-Save diatur tiap ${mins} menit`);
                       }}
                       className={`py-1 text-[11px] font-medium rounded-lg border text-center transition-all ${autoSaveConfig.intervalMinutes === mins && autoSaveConfig.enabled
-                          ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 font-semibold"
-                          : "bg-[#181b24] border-[#252938] text-gray-400 hover:text-white"
+                        ? "bg-emerald-950/80 border-emerald-500 text-emerald-300 font-semibold"
+                        : "bg-[#181b24] border-[#252938] text-gray-400 hover:text-white"
                         }`}
                     >
                       {mins}m
@@ -398,11 +398,10 @@ export default function Toolbar({
         {/* Tombol Cinematic Camera Motion */}
         <button
           onClick={() => setShowCameraModal(true)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shadow-sm ${
-            cameraConfig?.enabled
-              ? "bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-cyan-950/60 ring-1 ring-cyan-500/30"
-              : "bg-[#181b22] hover:bg-[#222631] border-[#2b2f3d] text-gray-300 hover:text-white hover:border-gray-500"
-          }`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shadow-sm ${cameraConfig?.enabled
+            ? "bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-cyan-950/60 ring-1 ring-cyan-500/30"
+            : "bg-[#181b22] hover:bg-[#222631] border-[#2b2f3d] text-gray-300 hover:text-white hover:border-gray-500"
+            }`}
           title="Atur Kamera Sinematik (Pan, Tilt, Zoom, Shake, Orbit)"
         >
           <span className="text-sm">📹</span>

@@ -308,7 +308,7 @@ export default function TextStudio() {
                     <button
                       type="button"
                       onClick={() => setStrokeWidth(strokeWidth === 0 ? 3 : strokeWidth === 3 ? 6 : 0)}
-                      className={`px-1 py-0.2 rounded border font-mono ${strokeWidth > 0 ? "border-cyan-500 text-cyan-300 bg-cyan-950/60" : "border-gray-700 text-gray-500"
+                      className={`px-1 py-0.5 rounded border font-mono ${strokeWidth > 0 ? "border-cyan-500 text-cyan-300 bg-cyan-950/60" : "border-gray-700 text-gray-500"
                         }`}
                       title="Ketebalan Garis Luar (Outline Stroke)"
                     >

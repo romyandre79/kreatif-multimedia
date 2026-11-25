@@ -193,7 +193,7 @@ export default function Inspector() {
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-[10px] px-1.5 py-0.2 bg-amber-950/80 text-amber-300 border border-amber-600/40 rounded font-mono">
+            <span className="text-[10px] px-1.5 py-0.5 bg-amber-950/80 text-amber-300 border border-amber-600/40 rounded font-mono">
               {keyframes.length} Points
             </span>
             {keyframes.length > 0 && (
@@ -621,29 +621,47 @@ export default function Inspector() {
         </div>
       )}
 
-      {/* Audio Volume */}
-      {trackType === "audio" && (
+      {/* Audio Volume & Mute Controls (Bisa untuk Track Audio dan Track Video) */}
+      {(trackType === "audio" || trackType === "video") && (
         <div className="rounded-lg bg-[#171920] border border-[#21242e] p-3 space-y-2.5">
           <div className="flex justify-between items-center text-[11px] font-semibold text-gray-200 uppercase tracking-wide">
-            <span>Audio Control</span>
-            {keyframes.length > 0 && (
-              <span className="font-mono text-amber-300 font-bold lowercase">
-                saat ini {Math.round((interpolatedProps.volume !== undefined ? interpolatedProps.volume : clipVolume) * 100)}%
-              </span>
-            )}
+            <span>Audio & Suara {trackType === "video" ? "Video" : ""}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  updateClipProperties(selectedClip!.id, {
+                    muted: !(selectedClip!.muted ?? false),
+                  })
+                }
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors flex items-center gap-1 ${
+                  selectedClip!.muted
+                    ? "bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30"
+                    : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                }`}
+                title={selectedClip!.muted ? "Klik untuk Menghidupkan Suara" : "Klik untuk Mematikan Suara"}
+              >
+                <span>{selectedClip!.muted ? "🔇 Suara Mati" : "🔊 Suara Hidup"}</span>
+              </button>
+              {keyframes.length > 0 && (
+                <span className="font-mono text-amber-300 font-bold lowercase">
+                  saat ini {Math.round((interpolatedProps.volume !== undefined ? interpolatedProps.volume : clipVolume) * 100)}%
+                </span>
+              )}
+            </div>
           </div>
           <div>
             <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-              <span>Volume</span>
+              <span>Volume Suara</span>
               <span className="font-mono text-cyan-400">
-                {Math.round((activeKeyframe ? (activeKeyframe.properties.volume ?? clipVolume) : clipVolume) * 100)}%
+                {selectedClip!.muted ? "0% (Muted)" : `${Math.round((activeKeyframe ? (activeKeyframe.properties.volume ?? clipVolume) : clipVolume) * 100)}%`}
               </span>
             </div>
             <input
               type="range"
               min="0"
-              max="2"
+              max="1"
               step="0.05"
+              disabled={selectedClip!.muted}
               value={activeKeyframe ? (activeKeyframe.properties.volume ?? clipVolume) : clipVolume}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
@@ -653,7 +671,7 @@ export default function Inspector() {
                   updateClipProperties(selectedClip!.id, { volume: val });
                 }
               }}
-              className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-purple-500"
+              className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-cyan-500 disabled:opacity-30"
             />
           </div>
         </div>

@@ -133,12 +133,15 @@ export async function renderAndExportVideo(
     audioDestination = audioContext.createMediaStreamDestination();
 
     for (const track of tracks) {
-      if (track.type === "audio" && !track.muted && track.visible !== false) {
+      // Decode audio baik dari track audio maupun track video yang bersuara
+      const isAudibleTrack = (track.type === "audio" || track.type === "video") && !track.muted && track.visible !== false;
+      if (isAudibleTrack) {
         for (const clip of track.clips) {
-          if (clip.source && !audioBuffers.has(clip.source)) {
+          const isClipMuted = clip.muted ?? false;
+          if (clip.source && !isClipMuted && !audioBuffers.has(clip.source)) {
             try {
               let arrayBuffer: ArrayBuffer;
-              if (clip.source.startsWith("data:audio/")) {
+              if (clip.source.startsWith("data:audio/") || clip.source.startsWith("data:video/")) {
                 const base64Data = clip.source.split(",")[1];
                 const binaryStr = atob(base64Data);
                 const bytes = new Uint8Array(binaryStr.length);
@@ -248,9 +251,11 @@ export async function renderAndExportVideo(
   if (audioContext && audioDestination) {
     const audioStartBase = audioContext.currentTime;
     for (const track of tracks) {
-      if (track.type === "audio" && !track.muted && track.visible !== false) {
+      const isAudibleTrack = (track.type === "audio" || track.type === "video") && !track.muted && track.visible !== false;
+      if (isAudibleTrack) {
         for (const clip of track.clips) {
-          if (clip.source && audioBuffers.has(clip.source)) {
+          const isClipMuted = clip.muted ?? false;
+          if (clip.source && !isClipMuted && audioBuffers.has(clip.source)) {
             const buffer = audioBuffers.get(clip.source)!;
             const sourceNode = audioContext.createBufferSource();
             sourceNode.buffer = buffer;

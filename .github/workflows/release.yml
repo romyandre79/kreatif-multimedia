@@ -123,6 +123,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          includeRelease: true
           tagName: v__VERSION__
           releaseName: "Kreatif Multimedia Studio v__VERSION__"
           releaseBody: |

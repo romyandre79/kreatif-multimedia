@@ -40,7 +40,7 @@ pub async fn export_video(config: ExportConfig) -> Result<String, String> {
 
 /// Baca metadata media file (durasi, resolusi, codec) menggunakan FFprobe.
 #[tauri::command]
-pub async fn probe_media(file_path: String) -> Result<MediaInfo, String> {
+pub async fn probe_media(_file_path: String) -> Result<MediaInfo, String> {
     // TODO: Jalankan ffprobe dan parse JSON output
     Ok(MediaInfo {
         duration: 0.0,

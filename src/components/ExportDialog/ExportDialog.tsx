@@ -19,6 +19,7 @@ const PRESETS = [
 export default function ExportDialog({ onClose }: ExportDialogProps) {
   const projectAspect = useProjectStore((s) => s.meta.aspect_ratio || "16:9");
   const projectTitle = useProjectStore((s) => s.meta.title || "Kreatif_Project");
+  const cameraConfig = useProjectStore((s) => s.meta.camera);
   const tracks = useProjectStore((s) => s.timeline.tracks);
 
   const [selectedPresetId, setSelectedPresetId] = useState(() => {
@@ -57,6 +58,7 @@ export default function ExportDialog({ onClose }: ExportDialogProps) {
         bitrate: bitrateVal,
         format: selectedPreset.format as "mp4" | "webm" | "mov" | "gif",
         ratio: selectedPreset.ratio,
+        camera: cameraConfig,
         onProgress: (pct, msg) => {
           setProgressPercent(pct);
           setExportNotice(msg);

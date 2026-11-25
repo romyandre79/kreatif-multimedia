@@ -16,6 +16,7 @@ export interface KeyframeProperties {
   rotation?: number;
   opacity?: number;
   volume?: number;
+  speed?: number; // Kecepatan playback video / speed ramping (0.25x - 8.0x)
 }
 
 export interface Keyframe {
@@ -99,7 +100,7 @@ export function interpolateKeyframes(
 
   const result: KeyframeProperties = { ...baseProperties };
 
-  const keys: (keyof KeyframeProperties)[] = ["x", "y", "scale", "rotation", "opacity", "volume"];
+  const keys: (keyof KeyframeProperties)[] = ["x", "y", "scale", "rotation", "opacity", "volume", "speed"];
 
   for (const k of keys) {
     const valPrev = prevKey.properties[k] !== undefined ? prevKey.properties[k] : baseProperties[k];
@@ -115,4 +116,52 @@ export function interpolateKeyframes(
   }
 
   return result;
+}
+
+/**
+ * Menghitung waktu internal media (video/audio timestamp) berdasarkan Speed Ramp (kecepatan dasar + variasi keyframe)
+ * @param keyframes Daftar keyframe pada klip
+ * @param relativeTime Detik saat ini dari awal klip (0 sampai clipDuration)
+ * @param baseSpeed Kecepatan putar dasar klip (default 1.0)
+ * @param sourceStart Detik potong awal file master (default 0)
+ */
+export function calculateSpeedRampedInternalTime(
+  keyframes: Keyframe[] | undefined,
+  relativeTime: number,
+  baseSpeed: number = 1.0,
+  sourceStart: number = 0
+): { internalTime: number; currentSpeed: number } {
+  const defaultSpeed = baseSpeed > 0 ? baseSpeed : 1.0;
+
+  // Jika tidak ada keyframe yang mengatur kecepatan, hitung secara linear
+  const speedKeyframes = (keyframes || []).filter((kf) => kf.properties.speed !== undefined);
+
+  if (speedKeyframes.length === 0) {
+    return {
+      internalTime: sourceStart + relativeTime * defaultSpeed,
+      currentSpeed: defaultSpeed,
+    };
+  }
+
+  // Hitung integral numerik dengan langkah waktu kecil untuk kurva kecepatan dinamis (Speed Ramping)
+  const step = 0.05; // 50ms interval untuk presisi halus 60 FPS
+  let accumulatedTime = 0;
+  let t = 0;
+
+  while (t < relativeTime) {
+    const dt = Math.min(step, relativeTime - t);
+    const midT = t + dt / 2;
+    const interpolated = interpolateKeyframes(keyframes, midT, { speed: defaultSpeed });
+    const spd = Math.max(0.1, interpolated.speed !== undefined ? interpolated.speed : defaultSpeed);
+    accumulatedTime += dt * spd;
+    t += dt;
+  }
+
+  const currentProps = interpolateKeyframes(keyframes, relativeTime, { speed: defaultSpeed });
+  const currentSpeed = Math.max(0.1, currentProps.speed !== undefined ? currentProps.speed : defaultSpeed);
+
+  return {
+    internalTime: sourceStart + accumulatedTime,
+    currentSpeed,
+  };
 }

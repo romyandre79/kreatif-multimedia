@@ -4,6 +4,8 @@ import { generateSynthesizedVoiceWav } from "../services/localTts";
 import { generateNaturalSpeechAudio } from "../services/naturalTts";
 import { optimizeImageToDataUrl, fileToDataUrl, saveProjectToIndexedDB, loadProjectFromIndexedDB } from "../services/persistentMedia";
 import { ImageAnimationConfig } from "../services/imageAnimationPresets";
+import { CameraMotionConfig, DEFAULT_CAMERA_MOTION } from "../services/cameraMotion";
+import { clampNonOverlappingPosition, clampNonOverlappingTrim } from "../services/timelineCollision";
 
 // --- Types ---
 
@@ -56,6 +58,7 @@ export interface KeyframeProperties {
   rotation?: number;
   opacity?: number;
   volume?: number;
+  speed?: number; // Kecepatan playback pada keyframe (0.25x - 8.0x)
 }
 
 export interface Keyframe {
@@ -90,6 +93,7 @@ export interface Clip {
   image_animation?: ImageAnimationConfig | null;
   volume?: number;
   opacity?: number;
+  playbackSpeed?: number; // Kecepatan putar dasar klip video/audio (misal 1.0, 1.5, 2.0, 4.0)
   keyframes?: Keyframe[];
   fade_in?: number;
   fade_out?: number;
@@ -144,6 +148,7 @@ export interface ProjectMeta {
   aspect_ratio: string;
   fps: number;
   duration: number;
+  camera?: CameraMotionConfig;
 }
 
 export interface TimelineState {
@@ -202,6 +207,7 @@ interface ProjectStore {
   updateEpisode: (episodeId: string, updates: Partial<Episode>) => void;
   deleteEpisode: (episodeId: string) => void;
   addSceneToEpisode: (episodeId: string, sceneData?: Partial<Scene>) => string;
+  insertSceneAfter: (episodeId: string, afterSceneId: string, sceneData?: Partial<Scene>) => string;
   updateScene: (episodeId: string, sceneId: string, updates: Partial<Scene>) => void;
   deleteScene: (episodeId: string, sceneId: string) => void;
   reorderScenes: (episodeId: string, sourceIndex: number, destIndex: number) => void;
@@ -224,6 +230,10 @@ interface ProjectStore {
   removeKeyframe: (clipId: string, keyframeId: string) => void;
   clearAllKeyframes: (clipId: string) => void;
   resetClipTransform: (clipId: string) => void;
+
+  // Camera Motion Actions
+  updateCameraMotion: (updates: Partial<CameraMotionConfig>) => void;
+  resetCameraMotion: () => void;
 }
 
 let _idCounter = 0;
@@ -283,6 +293,7 @@ export function createEmptyProjectData() {
       aspect_ratio: "16:9",
       fps: 30,
       duration: 30,
+      camera: { ...DEFAULT_CAMERA_MOTION },
     },
     characters: [
       {
@@ -756,6 +767,33 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     return newSceneId;
   },
 
+  insertSceneAfter: (episodeId, afterSceneId, sceneData) => {
+    const newSceneId = genId("sc");
+    set((state) => ({
+      episodes: state.episodes.map((ep) => {
+        if (ep.id !== episodeId) return ep;
+        const newScene: Scene = {
+          scene_id: newSceneId,
+          character_id: sceneData?.character_id || state.characters[0]?.id || "",
+          script: sceneData?.script || `Scene baru...`,
+          audio_url: sceneData?.audio_url || "",
+          duration: sceneData?.duration || 3.5,
+          media_url: sceneData?.media_url || "",
+          media_type: sceneData?.media_type,
+        };
+        const idx = ep.scenes.findIndex((sc) => sc.scene_id === afterSceneId);
+        const newScenes = [...ep.scenes];
+        if (idx !== -1) {
+          newScenes.splice(idx + 1, 0, newScene);
+        } else {
+          newScenes.push(newScene);
+        }
+        return { ...ep, scenes: newScenes };
+      }),
+    }));
+    return newSceneId;
+  },
+
   updateScene: (episodeId, sceneId, updates) =>
     set((state) => ({
       episodes: state.episodes.map((ep) => {
@@ -1142,9 +1180,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       pushUndoState(state);
 
       const duration = movedClip.end - movedClip.start;
-      const validStart = Math.max(0, newStart);
-      const validEnd = validStart + duration;
       const destTrackId = targetTrackId || currentTrackId;
+      const destTrack = state.timeline.tracks.find((t) => t.id === destTrackId);
+
+      // Kunci posisi start agar TIDAK PERNAH menimpa/menabrak klip lain di track ini
+      const nonOverlappingStart = destTrack
+        ? clampNonOverlappingPosition(destTrack.clips, clipId, newStart, duration)
+        : Math.max(0, newStart);
+
+      const validStart = nonOverlappingStart;
+      const validEnd = validStart + duration;
 
       // Update clips
       const updatedTracks = state.timeline.tracks.map((track) => {
@@ -1196,27 +1241,35 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   trimClip: (clipId, edge, newTime) =>
     set((state) => {
       pushUndoState(state);
-      const updatedTracks = state.timeline.tracks.map((track) => ({
-        ...track,
-        clips: track.clips.map((clip) => {
-          if (clip.id !== clipId) return clip;
+      const updatedTracks = state.timeline.tracks.map((track) => {
+        const containsClip = track.clips.some((c) => c.id === clipId);
+        if (!containsClip) return track;
 
-          // Jika klip belum memiliki maxDuration (misal dari project lama), hitung dari durasi awal klip
-          const maxAllowed = clip.maxDuration || (clip.end - clip.start);
+        // Hitung batas aman trim anti-overlap dengan klip tetangga
+        const safeTrimmedTime = clampNonOverlappingTrim(track.clips, clipId, edge, newTime);
 
-          if (edge === "left") {
-            // Trim kiri: bisa memotong/mengurangi durasi, tapi tidak bisa ditarik ke kiri melebihi batas durasi master
-            const minStart = clip.end - maxAllowed;
-            const validStart = Math.max(minStart, Math.max(0, Math.min(newTime, clip.end - 0.2)));
-            return { ...clip, start: validStart, maxDuration: maxAllowed };
-          } else {
-            // Trim kanan: bisa dikurangi, TAPI TIDAK BISA diperpanjang melebihi durasi master file
-            const maxEnd = clip.start + maxAllowed;
-            const validEnd = Math.min(maxEnd, Math.max(clip.start + 0.2, newTime));
-            return { ...clip, end: validEnd, maxDuration: maxAllowed };
-          }
-        }),
-      }));
+        return {
+          ...track,
+          clips: track.clips.map((clip) => {
+            if (clip.id !== clipId) return clip;
+
+            // Jika klip belum memiliki maxDuration (misal dari project lama), hitung dari durasi awal klip
+            const maxAllowed = clip.maxDuration || (clip.end - clip.start);
+
+            if (edge === "left") {
+              // Trim kiri: tidak boleh melewati batas master dan tidak boleh menimpa klip sebelumnya
+              const minStart = clip.end - maxAllowed;
+              const validStart = Math.max(minStart, Math.max(0, Math.min(safeTrimmedTime, clip.end - 0.2)));
+              return { ...clip, start: validStart, maxDuration: maxAllowed };
+            } else {
+              // Trim kanan: tidak boleh melebihi batas master dan tidak boleh menimpa klip setelahnya
+              const maxEnd = clip.start + maxAllowed;
+              const validEnd = Math.min(maxEnd, Math.max(clip.start + 0.2, safeTrimmedTime));
+              return { ...clip, end: validEnd, maxDuration: maxAllowed };
+            }
+          }),
+        };
+      });
 
       return {
         timeline: { ...state.timeline, tracks: updatedTracks },
@@ -1571,6 +1624,32 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       get().addClipToTrack(track.id, newClip);
       get().setCurrentTime(end);
     }
+  },
+
+  updateCameraMotion: (updates) => {
+    pushUndoState(get());
+    set((state) => {
+      const currentCamera = state.meta.camera || { ...DEFAULT_CAMERA_MOTION };
+      return {
+        meta: {
+          ...state.meta,
+          camera: {
+            ...currentCamera,
+            ...updates,
+          },
+        },
+      };
+    });
+  },
+
+  resetCameraMotion: () => {
+    pushUndoState(get());
+    set((state) => ({
+      meta: {
+        ...state.meta,
+        camera: { ...DEFAULT_CAMERA_MOTION },
+      },
+    }));
   },
 }));
 

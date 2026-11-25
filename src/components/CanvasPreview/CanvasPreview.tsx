@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useProjectStore, Clip, Track } from "../../stores/projectStore";
-import { interpolateKeyframes } from "../../services/keyframe";
+import { interpolateKeyframes, calculateSpeedRampedInternalTime } from "../../services/keyframe";
 import { getCustomTextAnimations, evaluateCustomTextAnimation } from "../../services/customTextAnimation";
 import { getCustomTransitions, evaluateTransitionTransform } from "../../services/customTransitions";
 import { evaluateImageAnimation } from "../../services/imageAnimationPresets";
+import { evaluateCameraTransform } from "../../services/cameraMotion";
 
 export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,6 +19,7 @@ export default function CanvasPreview() {
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const aspectRatio = useProjectStore((s) => s.meta.aspect_ratio || "16:9");
   const resolution = useProjectStore((s) => s.meta.resolution || { width: 1920, height: 1080 });
+  const cameraConfig = useProjectStore((s) => s.meta.camera);
 
   const isPlaying = useProjectStore((s) => s.isPlaying);
   const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
@@ -175,11 +177,24 @@ export default function CanvasPreview() {
 
               if (isCurrentlyActive && currentlyPlaying) {
                 const audioDuration = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
-                let targetTime = currTime - clip.start + (clip.source_start || 0);
+                const relativeClipTime = Math.max(0, currTime - clip.start);
+                const { internalTime, currentSpeed } = calculateSpeedRampedInternalTime(
+                  clip.keyframes,
+                  relativeClipTime,
+                  clip.playbackSpeed || 1.0,
+                  clip.source_start || 0
+                );
+
+                let targetTime = internalTime;
 
                 // Jika klip di timeline lebih panjang dari durasi file audio asli (misal BGM / loop audio)
                 if (audioDuration > 0 && targetTime >= audioDuration) {
                   targetTime = targetTime % audioDuration;
+                }
+
+                // Terapkan kecepatan playback pada elemen audio
+                if (Math.abs(audio.playbackRate - currentSpeed) > 0.05) {
+                  audio.playbackRate = Math.max(0.25, Math.min(8.0, currentSpeed));
                 }
 
                 // Evaluasi volume keyframe jika ada
@@ -244,6 +259,22 @@ export default function CanvasPreview() {
       return;
     }
 
+    // Evaluasi Gerakan Kamera Sinematik (Pan, Tilt, Zoom, Shake, Orbit)
+    const camTransform = evaluateCameraTransform(cameraConfig, currTime, width, height);
+
+    ctx.save();
+    if (cameraConfig?.enabled) {
+      // Pusatkan transformasi kamera di titik tengah kanvas
+      ctx.translate(width / 2 + camTransform.offsetX, height / 2 + camTransform.offsetY);
+      if (camTransform.rotation !== 0) {
+        ctx.rotate((camTransform.rotation * Math.PI) / 180);
+      }
+      if (camTransform.scale !== 1) {
+        ctx.scale(camTransform.scale, camTransform.scale);
+      }
+      ctx.translate(-width / 2, -height / 2);
+    }
+
     // 2. Render visual layers (Video & Image)
     for (const { clip, track } of activeClips) {
       if ((track.type === "video" || track.type === "image") && clip.source) {
@@ -255,14 +286,25 @@ export default function CanvasPreview() {
           ctx.restore();
         } else if (media instanceof HTMLVideoElement) {
           const videoDuration = media.duration && isFinite(media.duration) ? media.duration : 0;
-          const clipInternalTime = currTime - clip.start + (clip.source_start || 0);
+          const relativeClipTime = Math.max(0, currTime - clip.start);
+          const { internalTime, currentSpeed } = calculateSpeedRampedInternalTime(
+            clip.keyframes,
+            relativeClipTime,
+            clip.playbackSpeed || 1.0,
+            clip.source_start || 0
+          );
 
-          let targetVideoTime = clipInternalTime;
+          let targetVideoTime = internalTime;
           if (videoDuration > 0 && targetVideoTime >= videoDuration) {
             targetVideoTime = targetVideoTime % videoDuration;
           }
 
           if (currentlyPlaying) {
+            // Terapkan kecepatan putar pada elemen HTMLVideoElement
+            if (Math.abs(media.playbackRate - currentSpeed) > 0.05) {
+              media.playbackRate = Math.max(0.25, Math.min(8.0, currentSpeed));
+            }
+
             if (!activeVideoClipsRef.current.has(clip.id)) {
               // Mulai video sekali saja saat playhead masuk ke klip ini
               activeVideoClipsRef.current.add(clip.id);
@@ -574,7 +616,10 @@ export default function CanvasPreview() {
         ctx.restore();
       }
     }
-  }, [getMediaElement, aspectRatio]);
+
+    // Kembalikan konteks kamera ke normal
+    ctx.restore();
+  }, [getMediaElement, aspectRatio, cameraConfig]);
 
   const drawTransformedMedia = (
     ctx: CanvasRenderingContext2D,

@@ -11,6 +11,7 @@ export default function StoryEpisode() {
   const updateEpisode = useProjectStore((s) => s.updateEpisode);
   const deleteEpisode = useProjectStore((s) => s.deleteEpisode);
   const addSceneToEpisode = useProjectStore((s) => s.addSceneToEpisode);
+  const insertSceneAfter = useProjectStore((s) => s.insertSceneAfter);
   const updateScene = useProjectStore((s) => s.updateScene);
   const deleteScene = useProjectStore((s) => s.deleteScene);
   const reorderScenes = useProjectStore((s) => s.reorderScenes);
@@ -473,13 +474,31 @@ export default function StoryEpisode() {
                         </select>
                       </div>
 
-                      <button
-                        onClick={() => deleteScene(activeEpisode.id, scene.scene_id)}
-                        className="text-gray-500 hover:text-red-400 p-1 transition-colors text-[11px]"
-                        title="Hapus Scene"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {/* Tombol Tambah Scene tepat di sebelah scene ini (Insert After) */}
+                        <button
+                          onClick={() =>
+                            insertSceneAfter(activeEpisode.id, scene.scene_id, {
+                              character_id: scene.character_id,
+                              media_type: scene.media_type,
+                            })
+                          }
+                          className="px-1.5 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-300 hover:text-emerald-200 transition-colors text-[10px] font-semibold flex items-center gap-0.5 shadow-sm"
+                          title="Tambah Scene Baru Tepat Setelah Scene Ini (+ Scene)"
+                        >
+                          <span>+</span>
+                          <span>Scene</span>
+                        </button>
+
+                        {/* Tombol Hapus Scene (✕) */}
+                        <button
+                          onClick={() => deleteScene(activeEpisode.id, scene.scene_id)}
+                          className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-950/60 text-gray-400 hover:text-red-400 p-0.5 transition-colors text-[11px]"
+                          title="Hapus Scene Ini (✕)"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
                     {/* Preview / Pengaturan Media Visual (Image / Video) jika scene memilih Image atau Video */}

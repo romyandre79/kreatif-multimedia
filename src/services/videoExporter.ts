@@ -1,8 +1,9 @@
 import { Track, Clip } from "../stores/projectStore";
-import { interpolateKeyframes } from "./keyframe";
+import { interpolateKeyframes, calculateSpeedRampedInternalTime } from "./keyframe";
 import { getCustomTextAnimations, evaluateCustomTextAnimation } from "./customTextAnimation";
 import { getCustomTransitions, evaluateTransitionTransform } from "./customTransitions";
 import { evaluateImageAnimation } from "./imageAnimationPresets";
+import { CameraMotionConfig, evaluateCameraTransform } from "./cameraMotion";
 
 export interface VideoExportOptions {
   projectName: string;
@@ -12,6 +13,7 @@ export interface VideoExportOptions {
   bitrate: number;
   format: "mp4" | "webm" | "mov" | "gif";
   ratio: string;
+  camera?: CameraMotionConfig;
   onProgress: (percent: number, statusText: string) => void;
 }
 
@@ -253,6 +255,10 @@ export async function renderAndExportVideo(
             const sourceNode = audioContext.createBufferSource();
             sourceNode.buffer = buffer;
 
+            // Terapkan kecepatan putar audio (playbackSpeed)
+            const audioSpeed = clip.playbackSpeed && clip.playbackSpeed > 0 ? clip.playbackSpeed : 1.0;
+            sourceNode.playbackRate.value = audioSpeed;
+
             const gainNode = audioContext.createGain();
             gainNode.gain.value = clip.volume ?? 1.0;
 
@@ -263,7 +269,7 @@ export async function renderAndExportVideo(
             const offset = clip.source_start || 0;
             const clipDur = Math.max(0, clip.end - clip.start);
             // Jika klip audio di timeline lebih panjang dari buffer asli, aktifkan loop audio
-            if (buffer.duration > 0 && clipDur > buffer.duration) {
+            if (buffer.duration > 0 && clipDur * audioSpeed > buffer.duration) {
               sourceNode.loop = true;
             }
             sourceNode.start(startTime, offset, clipDur);
@@ -532,6 +538,21 @@ export async function renderAndExportVideo(
       }
     }
 
+    // Evaluasi Gerakan Kamera Sinematik (Pan, Tilt, Zoom, Shake, Orbit)
+    const camTransform = evaluateCameraTransform(options.camera, currentTime, width, height);
+
+    ctx.save();
+    if (options.camera?.enabled) {
+      ctx.translate(width / 2 + camTransform.offsetX, height / 2 + camTransform.offsetY);
+      if (camTransform.rotation !== 0) {
+        ctx.rotate((camTransform.rotation * Math.PI) / 180);
+      }
+      if (camTransform.scale !== 1) {
+        ctx.scale(camTransform.scale, camTransform.scale);
+      }
+      ctx.translate(-width / 2, -height / 2);
+    }
+
     // Render Video & Image tracks
     for (const { clip, track } of activeClips) {
       if ((track.type === "video" || track.type === "image") && clip.source) {
@@ -539,9 +560,22 @@ export async function renderAndExportVideo(
         if (media) {
           if (media instanceof HTMLVideoElement) {
             const videoDuration = media.duration && isFinite(media.duration) ? media.duration : 0;
-            let clipInternalTime = currentTime - clip.start + (clip.source_start || 0);
+            const relativeClipTime = Math.max(0, currentTime - clip.start);
+            const { internalTime, currentSpeed } = calculateSpeedRampedInternalTime(
+              clip.keyframes,
+              relativeClipTime,
+              clip.playbackSpeed || 1.0,
+              clip.source_start || 0
+            );
+
+            let clipInternalTime = internalTime;
             if (videoDuration > 0 && clipInternalTime >= videoDuration) {
               clipInternalTime = clipInternalTime % videoDuration;
+            }
+
+            // Terapkan kecepatan putar pada elemen HTMLVideoElement saat diexport
+            if (Math.abs(media.playbackRate - currentSpeed) > 0.05) {
+              media.playbackRate = Math.max(0.25, Math.min(8.0, currentSpeed));
             }
 
             if (!activeVideoClips.has(clip.id)) {
@@ -841,6 +875,9 @@ export async function renderAndExportVideo(
         ctx.restore();
       }
     }
+
+    // Kembalikan konteks kamera ke normal
+    ctx.restore();
   };
 
   // Jalankan perekaman dengan wall-clock time agar durasi file video persis sama dengan maxDuration

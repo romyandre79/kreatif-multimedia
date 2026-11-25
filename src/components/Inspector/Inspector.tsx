@@ -72,6 +72,8 @@ export default function Inspector() {
   const keyframes = selectedClip.keyframes || [];
   const activeKeyframe = keyframes.find((kf) => Math.abs(kf.time - relativeTime) < 0.05);
 
+  const clipPlaybackSpeed = selectedClip.playbackSpeed !== undefined ? selectedClip.playbackSpeed : 1.0;
+
   // Nilai terinterpolasi pada detik saat ini
   const interpolatedProps = interpolateKeyframes(keyframes, relativeTime, {
     x: transform.x,
@@ -80,6 +82,7 @@ export default function Inspector() {
     rotation: transform.rotation,
     opacity: clipOpacity,
     volume: clipVolume,
+    speed: clipPlaybackSpeed,
   });
 
   return (
@@ -98,6 +101,87 @@ export default function Inspector() {
           {(selectedClip.end - selectedClip.start).toFixed(2)}s
         </span>
       </div>
+
+      {/* Video / Audio Speed Control (Tampil Paling Atas agar Langsung Terlihat & Mudah Diatur) */}
+      {(trackType === "video" || trackType === "audio") && (
+        <div className="rounded-lg bg-[#141822] border border-cyan-500/40 p-3 space-y-2.5 shadow-md shadow-cyan-950/30">
+          <div className="flex justify-between items-center text-[11px] font-semibold text-gray-200 uppercase tracking-wide">
+            <span className="flex items-center gap-1.5 text-cyan-300">
+              <span className="text-sm">⚡</span> Kecepatan (Speed Ramping)
+            </span>
+            <span className="font-mono text-cyan-300 font-bold px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/60">
+              {(activeKeyframe
+                ? (activeKeyframe.properties.speed ?? clipPlaybackSpeed)
+                : (keyframes.length > 0 && interpolatedProps.speed !== undefined
+                    ? interpolatedProps.speed
+                    : clipPlaybackSpeed)
+              ).toFixed(2)}x
+            </span>
+          </div>
+
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            {activeKeyframe
+              ? "Mengatur kecepatan khusus pada titik Keyframe yang dipilih:"
+              : "Percepat atau perlambat klip video/audio ini:"}
+          </p>
+
+          {/* Preset Buttons */}
+          <div className="flex items-center gap-1 pt-0.5">
+            {[0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0, 8.0].map((presetSpd) => {
+              const currentVal = activeKeyframe
+                ? (activeKeyframe.properties.speed ?? clipPlaybackSpeed)
+                : clipPlaybackSpeed;
+              const isSelected = Math.abs(currentVal - presetSpd) < 0.05;
+              return (
+                <button
+                  key={presetSpd}
+                  type="button"
+                  onClick={() => {
+                    if (activeKeyframe) {
+                      addOrUpdateKeyframe(selectedClip!.id, activeKeyframe.time, { speed: presetSpd });
+                    } else {
+                      updateClipProperties(selectedClip!.id, { playbackSpeed: presetSpd });
+                    }
+                  }}
+                  className={`flex-1 py-1 text-[10px] font-mono rounded font-semibold transition-all border ${
+                    isSelected
+                      ? "bg-cyan-500 text-black border-cyan-400 shadow-sm"
+                      : "bg-[#10121a] text-gray-400 hover:text-white border-gray-800 hover:border-gray-600"
+                  }`}
+                >
+                  {presetSpd}x
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Slider Presisi */}
+          <div>
+            <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+              <span>{activeKeyframe ? "Kecepatan di Keyframe Ini:" : "Kecepatan Keseluruhan Klip:"}</span>
+              <span className="font-mono text-cyan-400 font-bold">
+                {(activeKeyframe ? (activeKeyframe.properties.speed ?? clipPlaybackSpeed) : clipPlaybackSpeed).toFixed(2)}x
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0.25"
+              max="8"
+              step="0.05"
+              value={activeKeyframe ? (activeKeyframe.properties.speed ?? clipPlaybackSpeed) : clipPlaybackSpeed}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (activeKeyframe) {
+                  addOrUpdateKeyframe(selectedClip!.id, activeKeyframe.time, { speed: val });
+                } else {
+                  updateClipProperties(selectedClip!.id, { playbackSpeed: val });
+                }
+              }}
+              className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-cyan-400"
+            />
+          </div>
+        </div>
+      )}
 
       {/* KEYFRAME CONTROLS (Tersedia untuk Video, Image, dan Audio) */}
       <div className="rounded-lg bg-[#181a24] border border-amber-500/30 p-3 space-y-2.5 shadow-sm">
@@ -160,6 +244,7 @@ export default function Inspector() {
                     rotation: transform.rotation,
                     opacity: clipOpacity,
                     volume: clipVolume,
+                    speed: selectedClip!.playbackSpeed || 1.0,
                   });
                 }}
                 className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-bold shadow transition-colors flex items-center gap-1"

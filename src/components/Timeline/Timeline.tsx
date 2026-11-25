@@ -262,6 +262,16 @@ export default function Timeline() {
             <span className="text-xs">🖼️</span>
             <span className="text-[11px] font-semibold">+ Gambar / Stiker</span>
           </button>
+
+          {/* Indikator Klip Terpilih & Pengaturan Kecepatan */}
+          {selectedClipId && (
+            <div className="flex items-center gap-1.5 pl-1.5 border-l border-[#252834]">
+              <span className="text-[10px] text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60 font-medium flex items-center gap-1">
+                <span>⚡</span>
+                <span>Speed Ramping aktif di panel Inspector (Kanan)</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Right Tools (Zoom & Add Track) */}

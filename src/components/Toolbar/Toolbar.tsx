@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useI18nStore } from "../../stores/i18nStore";
 import NewProjectModal from "../NewProjectModal/NewProjectModal";
+import CameraMotionModal from "../CameraMotion/CameraMotionModal";
 
 interface ToolbarProps {
   projectTitle: string;
@@ -37,7 +38,9 @@ export default function Toolbar({
   const [notification, setNotification] = useState<string | null>(null);
   const [showAutoSaveMenu, setShowAutoSaveMenu] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
   const autoSaveMenuRef = useRef<HTMLDivElement>(null);
+  const cameraConfig = useProjectStore((s) => s.meta.camera);
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const loadProjectInputRef = useRef<HTMLInputElement>(null);
@@ -392,6 +395,23 @@ export default function Toolbar({
           <span>{t("toolbar.gemini_flow", "Gemini Flow")}</span>
         </button>
 
+        {/* Tombol Cinematic Camera Motion */}
+        <button
+          onClick={() => setShowCameraModal(true)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shadow-sm ${
+            cameraConfig?.enabled
+              ? "bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-cyan-950/60 ring-1 ring-cyan-500/30"
+              : "bg-[#181b22] hover:bg-[#222631] border-[#2b2f3d] text-gray-300 hover:text-white hover:border-gray-500"
+          }`}
+          title="Atur Kamera Sinematik (Pan, Tilt, Zoom, Shake, Orbit)"
+        >
+          <span className="text-sm">📹</span>
+          <span>Kamera</span>
+          {cameraConfig?.enabled && (
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          )}
+        </button>
+
         <button
           onClick={onOpenAiSettings}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181b22] hover:bg-[#222631] border border-[#2b2f3d] text-cyan-400 text-xs font-medium transition-all shadow-sm hover:border-cyan-500/40"
@@ -417,6 +437,11 @@ export default function Toolbar({
         onClose={() => setShowNewProjectModal(false)}
         onCreated={() => showNotification("Proyek Baru Dibuat")}
       />
+
+      {/* Modal Camera Motion Studio */}
+      {showCameraModal && (
+        <CameraMotionModal onClose={() => setShowCameraModal(false)} />
+      )}
     </header>
   );
 }

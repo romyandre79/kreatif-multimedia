@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml",
+    "tauri:build": "tauri build --no-bundle",
     "tauri:bundle": "tauri build",
     "tauri:apk": "tauri android build --apk"
   },

@@ -7,6 +7,7 @@ import { ImageAnimationConfig } from "../services/imageAnimationPresets";
 import { CameraMotionConfig, DEFAULT_CAMERA_MOTION } from "../services/cameraMotion";
 import { clampNonOverlappingTrim, reorderClipsOnTrack } from "../services/timelineCollision";
 import { addCustomAudioToStorage, ScrapedAudioItem } from "../services/audioScraper";
+import { SkeletonRig } from "../services/skeletonTypes";
 
 // --- Types ---
 
@@ -24,6 +25,7 @@ export interface Character {
   avatar: string;
   assets: string[];
   voice: CharacterVoice;
+  skeleton?: SkeletonRig;
 }
 
 export interface Scene {
@@ -96,6 +98,7 @@ export interface Clip {
   muted?: boolean; // Status audio aktif/nonaktif pada video atau audio klip
   opacity?: number;
   playbackSpeed?: number; // Kecepatan putar dasar klip video/audio (misal 1.0, 1.5, 2.0, 4.0)
+  skeleton?: SkeletonRig; // Rig tulang & pose gerak karakter ala OpenToonz
   keyframes?: Keyframe[];
   fade_in?: number;
   fade_out?: number;

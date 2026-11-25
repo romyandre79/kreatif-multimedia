@@ -3,6 +3,7 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useI18nStore } from "../../stores/i18nStore";
 import NewProjectModal from "../NewProjectModal/NewProjectModal";
 import CameraMotionModal from "../CameraMotion/CameraMotionModal";
+import SkeletonEditorModal from "../SkeletonStudio/SkeletonEditorModal";
 
 interface ToolbarProps {
   projectTitle: string;
@@ -39,6 +40,7 @@ export default function Toolbar({
   const [showAutoSaveMenu, setShowAutoSaveMenu] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
+  const [showSkeletonModal, setShowSkeletonModal] = useState(false);
   const autoSaveMenuRef = useRef<HTMLDivElement>(null);
   const cameraConfig = useProjectStore((s) => s.meta.camera);
 
@@ -395,6 +397,16 @@ export default function Toolbar({
           <span>{t("toolbar.gemini_flow", "Gemini Flow")}</span>
         </button>
 
+        {/* Tombol OpenToonz Skeleton Rigging */}
+        <button
+          onClick={() => setShowSkeletonModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181b22] hover:bg-[#222631] border border-[#2b2f3d] text-amber-300 hover:text-amber-200 hover:border-amber-500/50 text-xs font-semibold transition-all shadow-sm"
+          title="Buka OpenToonz Skeleton & Bone Rigging Studio (Animasi Karakter 2D)"
+        >
+          <span className="text-sm">🦴</span>
+          <span>Skeleton Rig</span>
+        </button>
+
         {/* Tombol Cinematic Camera Motion */}
         <button
           onClick={() => setShowCameraModal(true)}
@@ -440,6 +452,11 @@ export default function Toolbar({
       {/* Modal Camera Motion Studio */}
       {showCameraModal && (
         <CameraMotionModal onClose={() => setShowCameraModal(false)} />
+      )}
+
+      {/* Modal OpenToonz Skeleton Rigging Studio */}
+      {showSkeletonModal && (
+        <SkeletonEditorModal onClose={() => setShowSkeletonModal(false)} />
       )}
     </header>
   );

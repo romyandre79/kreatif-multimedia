@@ -12,10 +12,12 @@ import {
 } from "../../services/imageAnimationPresets";
 import { useTranslation } from "../../stores/i18nStore";
 import CustomTransitionModal from "./CustomTransitionModal";
+import SkeletonEditorModal from "../SkeletonStudio/SkeletonEditorModal";
 
 export default function Inspector() {
   const { t } = useTranslation();
   const [showTransitionModal, setShowTransitionModal] = useState(false);
+  const [showSkeletonModal, setShowSkeletonModal] = useState(false);
   const selectedClipId = useProjectStore((s) => s.selectedClipId);
   const currentTime = useProjectStore((s) => s.currentTime);
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
@@ -989,9 +991,42 @@ export default function Inspector() {
           )}
         </div>
       )}
+      {/* OpenToonz Skeleton Rigging Control (Khusus Klip Gambar / Video) */}
+      {(trackType === "image" || trackType === "video") && (
+        <div className="rounded-lg bg-[#141720] border border-amber-500/40 p-3 space-y-2 shadow-md">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-amber-300 text-[11px] tracking-wide uppercase flex items-center gap-1.5">
+              <span>🦴</span> OpenToonz Skeleton Rig
+            </span>
+            {selectedClip.skeleton && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-amber-950/80 text-amber-300 border border-amber-700/60 font-semibold">
+                {selectedClip.skeleton.joints.length} Sendi Aktif
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            Pasang tulang sendi & pose gerak karakter 2D secara lentur (IK/FK puppet).
+          </p>
+          <button
+            onClick={() => setShowSkeletonModal(true)}
+            className="w-full py-1.5 px-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded text-xs font-semibold shadow transition-all flex items-center justify-center gap-1.5"
+          >
+            <span>🦴</span> Edit Skeleton & Pose Karakter
+          </button>
+        </div>
+      )}
+
       {/* Modal Kelola Transisi Kustom */}
       {showTransitionModal && (
         <CustomTransitionModal onClose={() => setShowTransitionModal(false)} />
+      )}
+
+      {/* Modal OpenToonz Skeleton Editor */}
+      {showSkeletonModal && (
+        <SkeletonEditorModal
+          targetClipId={selectedClip.id}
+          onClose={() => setShowSkeletonModal(false)}
+        />
       )}
     </div>
   );

@@ -5,6 +5,8 @@ import { getCustomTextAnimations, evaluateCustomTextAnimation } from "../../serv
 import { getCustomTransitions, evaluateTransitionTransform } from "../../services/customTransitions";
 import { evaluateImageAnimation } from "../../services/imageAnimationPresets";
 import { evaluateCameraTransform } from "../../services/cameraMotion";
+import { renderDeformedSkeletonImage } from "../../services/skeletonDeformer";
+import { SKELETON_ANIM_PRESETS, SkeletonRig } from "../../services/skeletonTypes";
 
 export default function CanvasPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -864,6 +866,62 @@ export default function CanvasPreview() {
         offCtx.putImageData(imgData, 0, 0);
         ctx.drawImage(offscreen, -drawW / 2, -drawH / 2, drawW, drawH);
       }
+    } else if (clip.skeleton && media instanceof HTMLImageElement) {
+      // Rendering Klip Karakter 2D Skeleton / Animasi Gerak ala OpenToonz
+      if (!chromaCanvasRef.current) {
+        chromaCanvasRef.current = document.createElement("canvas");
+      }
+      const offscreen = chromaCanvasRef.current;
+      const targetW = Math.max(1, Math.round(drawW));
+      const targetH = Math.max(1, Math.round(drawH));
+      if (offscreen.width !== targetW || offscreen.height !== targetH) {
+        offscreen.width = targetW;
+        offscreen.height = targetH;
+      }
+
+      // Hitung pose animasi saat ini berdasarkan relativeTime klip di timeline
+      let evaluatedRig: SkeletonRig = clip.skeleton;
+      if (clip.skeleton.animPresetId) {
+        const animPreset = SKELETON_ANIM_PRESETS.find((p) => p.id === clip.skeleton?.animPresetId);
+        if (animPreset && animPreset.keyframes.length > 0) {
+          const speed = clip.skeleton.animationSpeed || animPreset.speed || 1.0;
+          const cycleDuration = 1.0 / speed;
+          const progress = (Math.max(0, relativeTime) % cycleDuration) / cycleDuration;
+
+          const kfs = animPreset.keyframes;
+          let kfA = kfs[0];
+          let kfB = kfs[kfs.length - 1];
+
+          for (let i = 0; i < kfs.length - 1; i++) {
+            if (progress >= kfs[i].phase && progress <= kfs[i + 1].phase) {
+              kfA = kfs[i];
+              kfB = kfs[i + 1];
+              break;
+            }
+          }
+
+          const range = kfB.phase - kfA.phase || 1;
+          const localT = (progress - kfA.phase) / range;
+
+          const updatedJoints = clip.skeleton.joints.map((j) => {
+            const angleA = kfA.angles[j.id] || 0;
+            const angleB = kfB.angles[j.id] || 0;
+            const deltaAngle = angleA + (angleB - angleA) * localT;
+            return {
+              ...j,
+              angle: deltaAngle,
+            };
+          });
+
+          evaluatedRig = {
+            ...clip.skeleton,
+            joints: updatedJoints,
+          };
+        }
+      }
+
+      renderDeformedSkeletonImage(offscreen, media, evaluatedRig);
+      ctx.drawImage(offscreen, -drawW / 2, -drawH / 2, drawW, drawH);
     } else {
       ctx.drawImage(media, -drawW / 2, -drawH / 2, drawW, drawH);
     }

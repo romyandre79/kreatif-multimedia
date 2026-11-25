@@ -398,6 +398,19 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
                 </button>
               ))}
 
+              {/* Filter Cepat Upload Saya */}
+              <button
+                onClick={() => setProviderFilter(providerFilter === "local_upload" ? "all" : "local_upload")}
+                className={`px-2 py-0.5 rounded font-medium shrink-0 transition-colors flex items-center gap-1 ${
+                  providerFilter === "local_upload"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-[#14161d] text-gray-400 hover:text-gray-200 border border-[#21242e]"
+                }`}
+                title="Filter hanya audio yang di-upload"
+              >
+                📁 Upload Saya
+              </button>
+
               {/* Provider Filter */}
               <select
                 value={providerFilter}
@@ -405,6 +418,7 @@ export default function AudioVault({ onOpenAiSettings }: AudioVaultProps) {
                 className="px-1.5 py-0.5 bg-[#14161d] border border-[#21242e] rounded text-gray-300 text-[10px] focus:outline-none"
               >
                 <option value="all">Semua Sumber Web</option>
+                <option value="local_upload">📁 Upload Saya (Lokal)</option>
                 {audioProviders.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}

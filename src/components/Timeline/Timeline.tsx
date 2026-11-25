@@ -643,7 +643,7 @@ export default function Timeline() {
                           </p>
                           <p className="text-[9px] text-gray-400 font-mono flex items-center gap-1">
                             <span>{(clip.end - clip.start).toFixed(1)}s</span>
-                            {clip.maxDuration && (
+                            {clip.maxDuration && track.type !== "image" && track.type !== "subtitle" && (
                               <span className="text-[8px] text-cyan-400/80" title={`Durasi master: ${clip.maxDuration.toFixed(1)}s`}>
                                 (max {clip.maxDuration.toFixed(1)}s)
                               </span>

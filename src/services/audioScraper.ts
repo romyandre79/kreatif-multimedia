@@ -18,6 +18,8 @@ export interface ScrapedAudioItem {
 
 const AUDIO_SCRAPE_CACHE_KEY = "kreatif_scraped_audios_v4";
 const AUDIO_SCRAPE_TIMESTAMP_KEY = "kreatif_scraped_audios_last_sync";
+// Key khusus terpisah untuk audio yang diupload manual oleh user agar tidak pernah tertimpa atau hilang saat sync/reset
+export const CUSTOM_USER_AUDIOS_KEY = "kreatif_custom_user_audios_v1";
 
 /**
  * Generator Synthetic WAV Audio Data-URI (Offline-Safe & 100% playable di semua browser).
@@ -27,13 +29,11 @@ const AUDIO_SCRAPE_TIMESTAMP_KEY = "kreatif_scraped_audios_last_sync";
 export function generateSyntheticWavUrl(
   type: "melody" | "beat" | "sfx" | "ambient" | "chime" = "melody",
   seedNumber: number = 1,
-  exactDurationSec?: number
+  _exactDurationSec?: number
 ): string {
   const sampleRate = 16000; // 16kHz sangat cukup untuk suara jernih dan hemat ukuran file
-  // Jika exactDurationSec diberikan, buat file dengan durasi penuh tersebut (dibatasi max 300 detik agar tidak overload memori)
-  const targetDuration = exactDurationSec && exactDurationSec > 0
-    ? Math.min(exactDurationSec, 300)
-    : (type === "sfx" || type === "chime" ? 2.0 : 15.0);
+  // Gunakan durasi ringkas (2s untuk SFX, 5s untuk BGM) agar tidak melebihi kuota 5MB localStorage saat di-cache
+  const targetDuration = type === "sfx" || type === "chime" ? 1.5 : 4.0;
 
   const numSamples = Math.floor(sampleRate * targetDuration);
   const buffer = new Uint8Array(44 + numSamples * 2);
@@ -292,11 +292,41 @@ function buildExpandedAudioCatalog(): ScrapedAudioItem[] {
 export const SEED_SCRAPED_AUDIOS: ScrapedAudioItem[] = buildExpandedAudioCatalog();
 
 /**
+ * Mengambil daftar audio kustom yang diupload pengguna
+ */
+export function getCustomUserAudios(): ScrapedAudioItem[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_USER_AUDIOS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn("Gagal membaca audio kustom user dari localStorage:", e);
+  }
+  return [];
+}
+
+/**
+ * Menyimpan daftar audio kustom pengguna
+ */
+export function saveCustomUserAudios(items: ScrapedAudioItem[]): void {
+  try {
+    localStorage.setItem(CUSTOM_USER_AUDIOS_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn("Gagal menyimpan audio kustom user ke localStorage:", e);
+  }
+}
+
+/**
  * Mengambil daftar audio dari storage aplikasi (IndexedDB / localStorage)
  * Tanpa perlu selalu fetch ulang ke internet setiap kali dibuka.
- * Menggabungkan katalog seed terbaru secara otomatis.
+ * Menggabungkan katalog seed terbaru dan audio kustom unggahan pengguna secara otomatis.
  */
 export async function getCachedScrapedAudios(): Promise<ScrapedAudioItem[]> {
+  const userUploads = getCustomUserAudios();
+  let baseAudios: ScrapedAudioItem[] = [];
+
   try {
     const raw = localStorage.getItem(AUDIO_SCRAPE_CACHE_KEY);
     if (raw) {
@@ -309,18 +339,28 @@ export async function getCachedScrapedAudios(): Promise<ScrapedAudioItem[]> {
         if (missingSeeds.length > 0) {
           const merged = [...missingSeeds, ...parsed];
           await saveScrapedAudiosToStorage(merged);
-          return merged;
+          baseAudios = merged;
+        } else {
+          baseAudios = parsed;
         }
-        return parsed;
       }
     }
   } catch (e) {
     console.warn("Gagal membaca audio scrape cache:", e);
   }
 
-  // Jika belum ada di storage v3, simpan seed awal ke storage
-  await saveScrapedAudiosToStorage(SEED_SCRAPED_AUDIOS);
-  return SEED_SCRAPED_AUDIOS;
+  if (baseAudios.length === 0) {
+    baseAudios = SEED_SCRAPED_AUDIOS;
+    await saveScrapedAudiosToStorage(SEED_SCRAPED_AUDIOS);
+  }
+
+  // Gabungkan audio kustom pengguna di bagian paling atas
+  if (userUploads.length > 0) {
+    const userIds = new Set(userUploads.map((u) => u.id));
+    return [...userUploads, ...baseAudios.filter((b) => !userIds.has(b.id))];
+  }
+
+  return baseAudios;
 }
 
 /**
@@ -328,7 +368,9 @@ export async function getCachedScrapedAudios(): Promise<ScrapedAudioItem[]> {
  */
 export async function saveScrapedAudiosToStorage(items: ScrapedAudioItem[]): Promise<void> {
   try {
-    localStorage.setItem(AUDIO_SCRAPE_CACHE_KEY, JSON.stringify(items));
+    // Pisahkan item unggahan user dari cache publik agar cache publik tetap ringkas
+    const nonUserItems = items.filter((item) => item.providerId !== "local_upload");
+    localStorage.setItem(AUDIO_SCRAPE_CACHE_KEY, JSON.stringify(nonUserItems));
     localStorage.setItem(AUDIO_SCRAPE_TIMESTAMP_KEY, new Date().toISOString());
   } catch (e) {
     console.warn("Gagal simpan audio scrape cache ke localStorage:", e);
@@ -346,13 +388,17 @@ export const KREATIF_AUDIOS_UPDATED_EVENT = "kreatif_audios_updated";
  */
 export async function addCustomAudioToStorage(audio: ScrapedAudioItem): Promise<ScrapedAudioItem[]> {
   try {
-    const existing = await getCachedScrapedAudios();
-    const updated = [audio, ...existing.filter((item) => item.id !== audio.id)];
-    await saveScrapedAudiosToStorage(updated);
+    // 1. Simpan ke store permanen khusus user upload
+    const currentCustom = getCustomUserAudios();
+    const updatedCustom = [audio, ...currentCustom.filter((item) => item.id !== audio.id)];
+    saveCustomUserAudios(updatedCustom);
+
+    // 2. Ambil gabungan semua audio
+    const allAudios = await getCachedScrapedAudios();
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(KREATIF_AUDIOS_UPDATED_EVENT, { detail: updated }));
+      window.dispatchEvent(new CustomEvent(KREATIF_AUDIOS_UPDATED_EVENT, { detail: allAudios }));
     }
-    return updated;
+    return allAudios;
   } catch (err) {
     console.warn("Gagal menambahkan audio kustom ke pustaka:", err);
     return [];

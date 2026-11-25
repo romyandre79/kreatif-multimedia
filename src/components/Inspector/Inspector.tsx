@@ -21,6 +21,7 @@ export default function Inspector() {
   const setCurrentTime = useProjectStore((s) => s.setCurrentTime);
   const tracks = useProjectStore((s) => s.timeline.tracks);
   const updateClipProperties = useProjectStore((s) => s.updateClipProperties);
+  const changeClipSpeedWithRipple = useProjectStore((s) => s.changeClipSpeedWithRipple);
   const addOrUpdateKeyframe = useProjectStore((s) => s.addOrUpdateKeyframe);
   const removeKeyframe = useProjectStore((s) => s.removeKeyframe);
   const clearAllKeyframes = useProjectStore((s) => s.clearAllKeyframes);
@@ -140,7 +141,7 @@ export default function Inspector() {
                     if (activeKeyframe) {
                       addOrUpdateKeyframe(selectedClip!.id, activeKeyframe.time, { speed: presetSpd });
                     } else {
-                      updateClipProperties(selectedClip!.id, { playbackSpeed: presetSpd });
+                      changeClipSpeedWithRipple(selectedClip!.id, presetSpd);
                     }
                   }}
                   className={`flex-1 py-1 text-[10px] font-mono rounded font-semibold transition-all border ${
@@ -174,7 +175,7 @@ export default function Inspector() {
                 if (activeKeyframe) {
                   addOrUpdateKeyframe(selectedClip!.id, activeKeyframe.time, { speed: val });
                 } else {
-                  updateClipProperties(selectedClip!.id, { playbackSpeed: val });
+                  changeClipSpeedWithRipple(selectedClip!.id, val);
                 }
               }}
               className="w-full h-1 bg-[#232732] rounded appearance-none cursor-pointer accent-cyan-400"

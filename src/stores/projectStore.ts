@@ -228,6 +228,7 @@ interface ProjectStore {
   splitClipAtTime: (clipId: string, splitTime: number) => void;
   deleteSelectedClip: () => void;
   updateClipProperties: (clipId: string, props: Partial<Clip>) => void;
+  changeClipSpeedWithRipple: (clipId: string, newSpeed: number) => void;
   addOrUpdateKeyframe: (clipId: string, time: number, properties: KeyframeProperties, easing?: Keyframe["easing"]) => void;
   removeKeyframe: (clipId: string, keyframeId: string) => void;
   clearAllKeyframes: (clipId: string) => void;
@@ -1002,7 +1003,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           source: scene.media_url,
           start: startTime,
           end: endTime,
-          maxDuration: clipDur, // kunci batas durasi master visual
+          // Gambar tidak dikunci batas durasi master agar bebas diperpanjang di timeline
+          maxDuration: targetType === "image" ? undefined : clipDur,
         });
       }
     } else if (!audioOnly && scene.media_type === "image" && character?.avatar) {
@@ -1018,7 +1020,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           source: character.avatar,
           start: startTime,
           end: endTime,
-          maxDuration: clipDur,
+          // Avatar gambar bebas diperpanjang
+          maxDuration: undefined,
           chroma_key: {
             enabled: true,
             color: "#00FF00",
@@ -1038,7 +1041,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         text: `[${speakerLabel}]: ${scene.script}`,
         start: startTime,
         end: endTime,
-        maxDuration: clipDur,
+        // Subtitle bebas diperpanjang
+        maxDuration: undefined,
       });
     }
 
@@ -1267,7 +1271,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           clips: track.clips.map((clip) => {
             if (clip.id !== clipId) return clip;
 
-            const maxAllowed = clip.maxDuration || (clip.end - clip.start);
+            // Subtitle dan gambar adalah elemen statis/grafis yang bebas diperpanjang berapa lama pun tanpa batas file
+            const isExtendable = track.type === "subtitle" || track.type === "image" || !clip.maxDuration;
+            const maxAllowed = isExtendable ? 999999 : (clip.maxDuration || (clip.end - clip.start));
 
             if (edge === "left") {
               // Pemotongan dari kiri ke kanan (Trim In):
@@ -1276,24 +1282,28 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               const baseStart = initialClipState ? initialClipState.start : clip.start;
               const baseSourceStart = initialClipState ? initialClipState.source_start : (clip.source_start || 0);
 
-              const minStart = clip.end - maxAllowed;
+              const minStart = isExtendable ? 0 : clip.end - maxAllowed;
               const validStart = Math.max(minStart, Math.max(0, Math.min(safeTrimmedTime, clip.end - 0.2)));
 
               // Selisih berapa detik awal video yang telah dipotong dari titik awal drag
               const deltaTrim = validStart - baseStart;
-              const newSourceStart = Math.max(0, baseSourceStart + deltaTrim);
+              const newSourceStart = isExtendable ? 0 : Math.max(0, baseSourceStart + deltaTrim);
 
               return {
                 ...clip,
                 start: validStart,
                 source_start: newSourceStart,
-                maxDuration: maxAllowed,
+                maxDuration: isExtendable ? undefined : maxAllowed,
               };
             } else {
-              // Trim kanan: memperpendek atau memotong akhir klip
-              const maxEnd = clip.start + maxAllowed;
+              // Trim kanan: memperpendek atau memperpanjang akhir klip
+              const maxEnd = isExtendable ? 999999 : clip.start + maxAllowed;
               const validEnd = Math.min(maxEnd, Math.max(clip.start + 0.2, safeTrimmedTime));
-              return { ...clip, end: validEnd, maxDuration: maxAllowed };
+              return {
+                ...clip,
+                end: validEnd,
+                maxDuration: isExtendable ? undefined : maxAllowed,
+              };
             }
           }),
         };
@@ -1365,6 +1375,108 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         })),
       },
     })),
+
+  changeClipSpeedWithRipple: (clipId, newSpeed) =>
+    set((state) => {
+      // Temukan klip dan track-nya
+      let targetClip: Clip | null = null;
+      let targetTrackId = "";
+
+      for (const track of state.timeline.tracks) {
+        const found = track.clips.find((c) => c.id === clipId);
+        if (found) {
+          targetClip = found;
+          targetTrackId = track.id;
+          break;
+        }
+      }
+
+      if (!targetClip || newSpeed <= 0) return state;
+
+      const oldSpeed = targetClip.playbackSpeed || 1.0;
+      if (Math.abs(oldSpeed - newSpeed) < 0.001) return state;
+
+      // Hitung durasi dasar asli klip (baseDuration tanpa speed)
+      // Jika klip berdurasi (end - start) dengan speed lama, maka baseDuration = (end - start) * oldSpeed
+      const currentSpan = Math.max(0.1, targetClip.end - targetClip.start);
+      const baseDuration = (targetClip.source_end !== null && targetClip.source_start !== null && targetClip.source_end > targetClip.source_start)
+        ? (targetClip.source_end - targetClip.source_start)
+        : currentSpan * oldSpeed;
+
+      const newDuration = Math.max(0.1, Number((baseDuration / newSpeed).toFixed(3)));
+      const oldEnd = targetClip.end;
+      const newEnd = Number((targetClip.start + newDuration).toFixed(3));
+      const delta = Number((newDuration - currentSpan).toFixed(3));
+
+      // Jika durasinya tidak berubah, cukup update speed
+      if (Math.abs(delta) < 0.001) {
+        return {
+          timeline: {
+            ...state.timeline,
+            tracks: state.timeline.tracks.map((t) => ({
+              ...t,
+              clips: t.clips.map((c) => (c.id === clipId ? { ...c, playbackSpeed: newSpeed } : c)),
+            })),
+          },
+        };
+      }
+
+      pushUndoState(state);
+
+      // Perbarui track: perbarui targetClip dan ripple-shift semua klip di track yang sama yang posisinya setelah targetClip
+      const updatedTracks = state.timeline.tracks.map((track) => {
+        if (track.id !== targetTrackId) return track;
+
+        // Ambil klip dan urutkan berdasarkan start
+        const sortedClips = [...track.clips].sort((a, b) => a.start - b.start);
+        const updatedClips = sortedClips.map((c) => {
+          if (c.id === clipId) {
+            return {
+              ...c,
+              end: newEnd,
+              playbackSpeed: newSpeed,
+            };
+          }
+
+          // Klip yang berada setelah targetClip (di sebelah kanannya)
+          if (c.start >= oldEnd - 0.05) {
+            const nextStart = Math.max(newEnd, Number((c.start + delta).toFixed(3)));
+            const clipDur = Number((c.end - c.start).toFixed(3));
+            return {
+              ...c,
+              start: nextStart,
+              end: Number((nextStart + clipDur).toFixed(3)),
+            };
+          }
+
+          return c;
+        });
+
+        return {
+          ...track,
+          clips: updatedClips,
+        };
+      });
+
+      // Recalculate max duration proyek jika melebihi batas saat ini
+      let maxEnd = state.meta.duration;
+      for (const t of updatedTracks) {
+        for (const c of t.clips) {
+          if (c.end > maxEnd) maxEnd = c.end;
+        }
+      }
+
+      return {
+        timeline: {
+          ...state.timeline,
+          tracks: updatedTracks,
+        },
+        meta: {
+          ...state.meta,
+          duration: Math.max(state.meta.duration, Math.ceil(maxEnd + 2)),
+        },
+      };
+    }),
 
   addOrUpdateKeyframe: (clipId, time, properties, easing = "linear") =>
     set((state) => {
@@ -1636,9 +1748,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         source: persistentUrl,
         start,
         end,
-        maxDuration: measuredDuration, // Kunci durasi master file audio/video saat di-import
+        // Gambar tidak dibatasi maxDuration agar bisa di-trim/diperpanjang bebas
+        maxDuration: targetTrackType === "image" ? undefined : measuredDuration,
         source_start: 0,
-        source_end: measuredDuration,
+        source_end: targetTrackType === "image" ? null : measuredDuration,
         transform: { scale: 1, x: 0, y: 0, rotation: 0 },
         crop: { x: 0, y: 0, width: 1920, height: 1080 },
         transition_in: null,
